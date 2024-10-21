@@ -96,9 +96,14 @@ export default function DeckPageClient({
           </Button>
           <Dialog open={isCreating} onOpenChange={setIsCreating}>
             <DialogTrigger asChild>
-              <Button>Add Flashcard</Button>
+              <Button onClick={() => {
+                setEditingCard(null);
+                form.reset({ front: "", back: "" });
+              }}>
+                Add Flashcard
+              </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className='bg-gray-100'>
               <DialogHeader>
                 <DialogTitle>{editingCard ? "Edit Flashcard" : "Add New Flashcard"}</DialogTitle>
               </DialogHeader>

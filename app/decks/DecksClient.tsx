@@ -106,7 +106,7 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
               New Deck
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className='bg-gray-400'>
             <DialogHeader>
               <DialogTitle>{editingDeck ? "Edit Deck" : "Create New Deck"}</DialogTitle>
               <DialogDescription>

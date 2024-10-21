@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { Flashcard } from '@/lib/types'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
 import Link from 'next/link'
+import FlipCard from '@/components/FlipCard'
+import { Button } from '@/components/ui/button'
 
 export default function ReviewPageClient({ 
   initialFlashcards,
@@ -15,19 +15,15 @@ export default function ReviewPageClient({
 }) {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([])
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
-  const [isFlipped, setIsFlipped] = useState(false)
   const [isReviewComplete, setIsReviewComplete] = useState(false)
 
   useEffect(() => {
     setFlashcards(initialFlashcards)
   }, [initialFlashcards])
 
-  const handleFlip = () => setIsFlipped(!isFlipped)
-
-  const handleTryAgain = async () => {
+  const handleTryAgain = () => {
     const currentCard = flashcards[currentCardIndex]
     setFlashcards(cards => [...cards.slice(0, currentCardIndex), ...cards.slice(currentCardIndex + 1), currentCard])
-    setIsFlipped(false)
     if (currentCardIndex >= flashcards.length - 1) {
       setCurrentCardIndex(0)
     }
@@ -54,12 +50,12 @@ export default function ReviewPageClient({
         })
       });
 
-      setFlashcards(cards => cards.filter(card => card.id !== currentCard.id))
-      setIsFlipped(false)
+      const newFlashcards = flashcards.filter(card => card.id !== currentCard.id)
+      setFlashcards(newFlashcards)
 
-      if (flashcards.length === 1) {
+      if (newFlashcards.length === 0) {
         setIsReviewComplete(true)
-      } else if (currentCardIndex >= flashcards.length - 1) {
+      } else if (currentCardIndex >= newFlashcards.length) {
         setCurrentCardIndex(0)
       }
     } catch (error) {
@@ -69,20 +65,11 @@ export default function ReviewPageClient({
 
   if (isReviewComplete) {
     return (
-      <div className="container mx-auto p-4 flex flex-col items-center">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Review Complete</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-center">Congratulations! You have finished your review.</p>
-          </CardContent>
-          <CardFooter className="flex justify-center">
-            <Button asChild>
-              <Link href="/">Go to Home</Link>
-            </Button>
-          </CardFooter>
-        </Card>
+      <div className="text-center p-4">
+        <h2 className="text-2xl font-bold mb-4">Congratulations! You have finished your review.</h2>
+        <Link href="/decks" className="bg-primary text-black px-4 py-2 rounded hover:bg-primary-dark">
+          Return to Decks
+        </Link>
       </div>
     )
   }
@@ -90,26 +77,32 @@ export default function ReviewPageClient({
   const currentCard = flashcards[currentCardIndex]
 
   if (!currentCard) {
-    return <div>No flashcards available for review.</div>
+    return <div className="text-center p-4">No flashcards available for review.</div>
   }
 
   return (
-    <div className="container mx-auto p-4 flex flex-col items-center">
-      <h1 className="text-3xl font-bold mb-6">Review Session</h1>
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Card {currentCardIndex + 1} of {flashcards.length}</CardTitle>
-        </CardHeader>
-        <CardContent className="h-48 flex items-center justify-center cursor-pointer" onClick={handleFlip}>
-          <p className="text-xl text-center">
-            {isFlipped ? currentCard.back : currentCard.front}
-          </p>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button onClick={handleTryAgain} variant="outline">Try Again</Button>
-          <Button onClick={handleKnown}>Known</Button>
-        </CardFooter>
-      </Card>
+    <div className="max-w-md mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4 text-center">Review Session</h1>
+      <div className="mb-4">
+        <FlipCard front={currentCard.front} back={currentCard.back} />
+      </div>
+      <div className="flex justify-between mt-4">
+        <Button 
+          onClick={handleTryAgain} 
+          variant="secondary"
+        >
+          Try Again
+        </Button>
+        <Button 
+          onClick={handleKnown} 
+          variant="default"
+        >
+          Known
+        </Button>
+      </div>
+      <p className="mt-4 text-center">
+        Card {currentCardIndex + 1} of {flashcards.length}
+      </p>
     </div>
   )
 }
