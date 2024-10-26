@@ -8,12 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
 import { Textarea } from "@/components/ui/textarea"
-import { PlusCircle } from "lucide-react"
+import { PlusCircle, Sparkles } from "lucide-react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useSession } from "next-auth/react"
 import { Deck, ExtendedSession } from '@/lib/types'
+import { motion, AnimatePresence } from 'framer-motion'
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -66,8 +67,6 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
         const newDeck = await response.json()
         if (newDeck && newDeck.id) {
           setDecks(prevDecks => [...prevDecks, newDeck])
-        } else {
-          console.error("Failed to create deck: Invalid response", newDeck)
         }
       }
       form.reset()
@@ -78,113 +77,156 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
     }
   }
 
-  const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this deck?")) {
-      try {
-        await fetch(`/api/decks/${id}`, {
-          method: 'DELETE'
-        })
-        setDecks(prevDecks => prevDecks.filter(deck => deck.id !== id))
-      } catch (error) {
-        console.error("Failed to delete deck:", error)
-      }
-    }
-  }
-
-  if (!session) {
-    return <div>Please sign in to view your decks.</div>
-  }
-
   return (
-    <div className="container mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Your Decks</h1>
-        <Dialog open={isCreating} onOpenChange={setIsCreating}>
-          <DialogTrigger asChild>
-            <Button>
-              <PlusCircle className="mr-2 h-4 w-4" />
-              New Deck
-            </Button>
-          </DialogTrigger>
-          <DialogContent className='bg-gray-400'>
-            <DialogHeader>
-              <DialogTitle>{editingDeck ? "Edit Deck" : "Create New Deck"}</DialogTitle>
-              <DialogDescription>
-                {editingDeck 
-                  ? "Update the details of your existing deck." 
-                  : "Enter the details for your new flashcard deck."}
-              </DialogDescription>
-            </DialogHeader>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                <FormField
-                  control={form.control}
-                  name="title"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Title</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Deck title" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Description</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Deck description" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <Button type="submit">Save</Button>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {decks.map(deck => (
-          <Card key={deck.id}>
-            <CardHeader>
-              <CardTitle>{deck.title}</CardTitle>
-              <CardDescription>{deck.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {}
-            </CardContent>
-            <CardFooter className="flex justify-between">
-              <Button asChild>
-                <Link href={`/decks/${deck.id}`}>View</Link>
+    <div className="container mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-light text-neutral-800 dark:text-white">Collections</h1>
+            <p className="text-neutral-600 dark:text-neutral-400 mt-2">Create and manage your flashcard collections</p>
+          </div>
+          <Dialog open={isCreating} onOpenChange={setIsCreating}>
+            <DialogTrigger asChild>
+              <Button className="dark:bg-white dark:text-black dark:hover:bg-neutral-200">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                New Collection
               </Button>
-              <div>
+            </DialogTrigger>
+            <DialogContent className="dark:glass-card sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-light dark:text-white">
+                  {editingDeck ? 'Edit Collection' : 'Create New Collection'}
+                </DialogTitle>
+                <DialogDescription className="dark:text-neutral-400">
+                  {editingDeck 
+                    ? 'Update your collection details.' 
+                    : 'Add a new collection to organize your flashcards.'}
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <FormField
+                    control={form.control}
+                    name="title"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="dark:text-neutral-300">Title</FormLabel>
+                        <FormControl>
+                          <Input 
+                            placeholder="Collection title" 
+                            className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-neutral-500"
+                            {...field} 
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="dark:text-neutral-300">Description</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Describe your collection" 
+                            className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-neutral-500 resize-none"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button 
+                    type="submit"
+                    className="w-full dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                  >
+                    {editingDeck ? 'Save Changes' : 'Create Collection'}
+                  </Button>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <AnimatePresence mode="popLayout">
+            {decks.length === 0 ? (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="col-span-full flex flex-col items-center justify-center p-12 text-center"
+              >
+                <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+                  <Sparkles className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
+                </div>
+                <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
+                  No collections yet
+                </h3>
+                <p className="text-neutral-600 dark:text-neutral-400 mb-6">
+                  Create your first collection to get started
+                </p>
                 <Button 
-                  variant="outline" 
-                  className="mr-2" 
-                  onClick={() => {
-                    setEditingDeck(deck)
-                    form.reset({ title: deck.title, description: deck.description || undefined })
-                    setIsCreating(true)
-                  }}
+                  onClick={() => setIsCreating(true)}
+                  className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                 >
-                  Edit
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Create Collection
                 </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={() => handleDelete(deck.id)}
+              </motion.div>
+            ) : (
+              decks.map((deck, index) => (
+                <motion.div
+                  key={deck.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.2, delay: index * 0.05 }}
                 >
-                  Delete
-                </Button>
-              </div>
-            </CardFooter>
-          </Card>
-        ))}
+                  <Card className="dark:glass-card dark:border-white/5 group hover:shadow-lg transition-all duration-200">
+                    <CardHeader>
+                      <CardTitle className="text-xl font-light dark:text-white">
+                        {deck.title}
+                      </CardTitle>
+                      <CardDescription className="dark:text-neutral-400">
+                        {deck.description}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between text-sm dark:text-neutral-400">
+                        <span>Created {new Date(deck.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </CardContent>
+                    <CardFooter className="flex justify-end space-x-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setEditingDeck(deck)
+                          form.reset({ 
+                            title: deck.title, 
+                            description: deck.description || undefined 
+                          })
+                          setIsCreating(true)
+                        }}
+                        className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        asChild
+                        className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                      >
+                        <Link href={`/decks/${deck.id}`}>View Cards</Link>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </AnimatePresence>
+        </div>
       </div>
     </div>
   )

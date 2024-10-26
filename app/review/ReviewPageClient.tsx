@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast"
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ThumbsUp, ThumbsDown, RotateCcw, CheckCircle } from 'lucide-react'
 import { Progress } from '@/components/ui/progress'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 
 export default function ReviewPageClient({ 
   initialFlashcards,
@@ -126,8 +126,14 @@ export default function ReviewPageClient({
   if (flashcards.length === 0 && !isReviewComplete) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
-        <h2 className="text-2xl font-light text-neutral-800 mb-4">No flashcards available for review</h2>
-        <Button asChild variant="outline">
+        <h2 className="text-2xl font-light text-neutral-800 dark:text-white mb-4">
+          No flashcards available for review
+        </h2>
+        <Button 
+          asChild 
+          variant="outline"
+          className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+        >
           <Link href={`/decks/${deckId}`} className="flex items-center">
             <ChevronLeft className="mr-2 h-4 w-4" />
             Return to deck
@@ -144,14 +150,18 @@ export default function ReviewPageClient({
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ type: "spring", stiffness: 260, damping: 20 }}
-          className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6"
+          className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-6"
         >
-          <CheckCircle className="w-8 h-8 text-green-600" />
+          <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
         </motion.div>
-        <h2 className="text-3xl font-light text-neutral-800 mb-3">Review Complete!</h2>
-        <p className="text-neutral-600 mb-6">Great job! You've reviewed all the cards.</p>
+        <h2 className="text-3xl font-light text-neutral-800 dark:text-white mb-3">Review Complete!</h2>
+        <p className="text-neutral-600 dark:text-neutral-400 mb-6">Great job! You've reviewed all the cards.</p>
         <div className="flex space-x-4">
-          <Button asChild variant="outline">
+          <Button 
+            asChild 
+            variant="outline"
+            className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+          >
             <Link href={`/decks/${deckId}`}>
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back to Deck
@@ -164,7 +174,7 @@ export default function ReviewPageClient({
               setIsReviewComplete(false);
               setProgress(0);
             }}
-            className="bg-neutral-900 text-white hover:bg-neutral-800"
+            className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
           >
             <RotateCcw className="mr-2 h-4 w-4" />
             Start Over
@@ -180,17 +190,24 @@ export default function ReviewPageClient({
     <div className="max-w-4xl mx-auto p-4">
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4">
-          <Button asChild variant="ghost" className="text-neutral-600">
+          <Button 
+            asChild 
+            variant="ghost" 
+            className="text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-white/5"
+          >
             <Link href={`/decks/${deckId}`}>
               <ChevronLeft className="mr-2 h-4 w-4" />
               Back to deck
             </Link>
           </Button>
-          <div className="text-sm text-neutral-600">
+          <div className="text-sm text-neutral-600 dark:text-neutral-400">
             Card {currentCardIndex + 1} of {flashcards.length}
           </div>
         </div>
-        <Progress value={progress} className="h-2" />
+        <Progress 
+          value={progress} 
+          className="h-2 dark:bg-white/5" 
+        />
       </div>
 
       <motion.div
@@ -201,10 +218,10 @@ export default function ReviewPageClient({
         transition={{ duration: 0.3 }}
       >
         <Card 
-          className="relative bg-white overflow-hidden cursor-pointer min-h-[400px] mb-6"
+          className="relative dark:glass-card bg-white dark:border-white/5 overflow-hidden cursor-pointer min-h-[400px] mb-6"
           onClick={() => setIsFlipped(!isFlipped)}
         >
-          <CardContent className="absolute inset-0 p-8 flex items-center justify-center">
+          <div className="absolute inset-0 p-8 flex items-center justify-center">
             <motion.div
               className="w-full text-center"
               initial={false}
@@ -213,34 +230,34 @@ export default function ReviewPageClient({
               style={{ transformStyle: "preserve-3d" }}
             >
               <div className={`${isFlipped ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}>
-                <h3 className="text-xl text-neutral-600 mb-4">Front</h3>
-                <p className="text-2xl font-light">{currentCard.front}</p>
+                <h3 className="text-xl text-neutral-600 dark:text-neutral-400 mb-4">Front</h3>
+                <p className="text-2xl font-light dark:text-white">{currentCard.front}</p>
               </div>
               <div 
                 className={`${isFlipped ? 'opacity-100' : 'opacity-0'} absolute inset-0 flex items-center justify-center transition-opacity duration-300`}
                 style={{ transform: "rotateX(180deg)" }}
               >
                 <div>
-                  <h3 className="text-xl text-neutral-600 mb-4">Back</h3>
-                  <p className="text-2xl font-light">{currentCard.back}</p>
+                  <h3 className="text-xl text-neutral-600 dark:text-neutral-400 mb-4">Back</h3>
+                  <p className="text-2xl font-light dark:text-white">{currentCard.back}</p>
                 </div>
               </div>
             </motion.div>
-          </CardContent>
+          </div>
         </Card>
 
         <div className="grid grid-cols-2 gap-4">
           <Button 
             onClick={handleTryAgain}
             variant="outline"
-            className="border-red-200 hover:border-red-300 text-red-600 hover:text-red-700"
+            className="border-red-200 dark:border-red-500/20 hover:border-red-300 dark:hover:border-red-500/30 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300"
           >
             <ThumbsDown className="mr-2 h-4 w-4" />
             Try Again
           </Button>
           <Button 
             onClick={handleKnown}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className="bg-green-600 hover:bg-green-700 dark:bg-green-500/20 dark:hover:bg-green-500/30 text-white dark:text-green-400"
           >
             <ThumbsUp className="mr-2 h-4 w-4" />
             Got It

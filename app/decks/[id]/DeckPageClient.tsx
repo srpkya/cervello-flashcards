@@ -167,16 +167,20 @@ export default function DeckPageClient({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="bg-white border-neutral-200 mb-8 overflow-hidden">
-            <CardHeader className="border-b border-neutral-100 bg-neutral-50">
+          <Card className="dark:glass-card dark:border-white/5 bg-white border-neutral-200 mb-8 overflow-hidden">
+            <CardHeader className="border-b border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-white/[0.02]">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-3xl font-light text-neutral-800">{deck.title}</CardTitle>
-                  <CardDescription className="text-neutral-600 mt-1">{deck.description}</CardDescription>
+                  <CardTitle className="text-3xl font-light text-neutral-800 dark:text-white">
+                    {deck.title}
+                  </CardTitle>
+                  <CardDescription className="text-neutral-600 dark:text-neutral-400 mt-1">
+                    {deck.description}
+                  </CardDescription>
                 </div>
                 <Button 
                   asChild
-                  className="bg-neutral-900 text-white hover:bg-neutral-800"
+                  className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
                 >
                   <Link href={`/review?deckId=${deck.id}`}>
                     <PlayCircle className="mr-2 h-4 w-4" />
@@ -188,21 +192,21 @@ export default function DeckPageClient({
             <CardContent className="py-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-neutral-100 rounded-lg">
-                    <Book className="h-5 w-5 text-neutral-600" />
+                  <div className="p-3 bg-neutral-100 dark:bg-white/5 rounded-lg">
+                    <Book className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   </div>
                   <div>
-                    <p className="text-sm text-neutral-600">Total Cards</p>
-                    <p className="text-2xl font-light">{flashcards.length}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Cards</p>
+                    <p className="text-2xl font-light dark:text-white">{flashcards.length}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
-                  <div className="p-3 bg-neutral-100 rounded-lg">
-                    <Clock className="h-5 w-5 text-neutral-600" />
+                  <div className="p-3 bg-neutral-100 dark:bg-white/5 rounded-lg">
+                    <Clock className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   </div>
                   <div>
-                    <p className="text-sm text-neutral-600">Due Today</p>
-                    <p className="text-2xl font-light">
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Due Today</p>
+                    <p className="text-2xl font-light dark:text-white">
                       {flashcards.filter(card => 
                         !card.nextReview || new Date(card.nextReview) <= new Date()
                       ).length}
@@ -211,24 +215,20 @@ export default function DeckPageClient({
                 </div>
               </div>
             </CardContent>
-            <CardFooter className="border-t border-neutral-100 bg-neutral-50">
+            <CardFooter className="border-t border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-white/[0.02]">
               <Dialog open={isCreating} onOpenChange={setIsCreating}>
                 <DialogTrigger asChild>
                   <Button 
                     variant="outline"
-                    className="border-neutral-300 hover:border-neutral-400"
-                    onClick={() => {
-                      setEditingCard(null);
-                      form.reset({ front: "", back: "" });
-                    }}
+                    className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Card
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="bg-[#F5F2EA] border-neutral-200 sm:max-w-[425px]">
+                <DialogContent className="dark:glass-card bg-[#F5F2EA] border-neutral-200 dark:border-white/10 sm:max-w-[425px]">
                   <DialogHeader>
-                    <DialogTitle className="text-xl font-light">
+                    <DialogTitle className="text-xl font-light dark:text-white">
                       {editingCard ? "Edit Card" : "Add New Card"}
                     </DialogTitle>
                   </DialogHeader>
@@ -239,11 +239,11 @@ export default function DeckPageClient({
                         name="front"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Front</FormLabel>
+                            <FormLabel className="dark:text-neutral-200">Front</FormLabel>
                             <FormControl>
                               <Textarea 
                                 placeholder="Enter the front side content"
-                                className="resize-none bg-white"
+                                className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
                                 {...field} 
                               />
                             </FormControl>
@@ -256,11 +256,11 @@ export default function DeckPageClient({
                         name="back"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Back</FormLabel>
+                            <FormLabel className="dark:text-neutral-200">Back</FormLabel>
                             <FormControl>
                               <Textarea 
                                 placeholder="Enter the back side content"
-                                className="resize-none bg-white"
+                                className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
                                 {...field} 
                               />
                             </FormControl>
@@ -271,7 +271,7 @@ export default function DeckPageClient({
                       <div className="flex justify-end">
                         <Button 
                           type="submit"
-                          className="bg-neutral-900 text-white hover:bg-neutral-800"
+                          className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
                         >
                           {editingCard ? "Save Changes" : "Add Card"}
                         </Button>
@@ -295,30 +295,32 @@ export default function DeckPageClient({
                 transition={{ duration: 0.3, delay: index * 0.05 }}
               >
                 <Card className={cn(
-                  "bg-white border-neutral-200 hover:border-neutral-300 transition-all",
-                  "group hover:shadow-lg hover:-translate-y-1"
+                  "dark:glass-card dark:border-white/5 bg-white border-neutral-200",
+                  "group hover:shadow-lg hover:-translate-y-1 transition-all duration-200"
                 )}>
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg font-normal text-neutral-600">Card {index + 1}</CardTitle>
+                      <CardTitle className="text-lg font-normal text-neutral-600 dark:text-neutral-300">
+                        Card {index + 1}
+                      </CardTitle>
                       <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ChevronRight className="h-5 w-5 text-neutral-400" />
+                        <ChevronRight className="h-5 w-5 text-neutral-400 dark:text-neutral-500" />
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div>
-                      <p className="text-xs font-medium text-neutral-500 mb-1">Front</p>
-                      <p className="text-sm text-neutral-800">{card.front}</p>
+                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Front</p>
+                      <p className="text-sm text-neutral-800 dark:text-white">{card.front}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-neutral-500 mb-1">Back</p>
-                      <p className="text-sm text-neutral-800">{card.back}</p>
+                      <p className="text-xs font-medium text-neutral-500 dark:text-neutral-400 mb-1">Back</p>
+                      <p className="text-sm text-neutral-800 dark:text-white">{card.back}</p>
                     </div>
                   </CardContent>
-                  <CardFooter className="border-t border-neutral-100 pt-4">
+                  <CardFooter className="border-t border-neutral-100 dark:border-white/5 pt-4">
                     <div className="flex justify-between items-center w-full">
-                      <div className="text-xs text-neutral-500">
+                      <div className="text-xs text-neutral-500 dark:text-neutral-400">
                         {card.lastReviewed 
                           ? `Last reviewed ${new Date(card.lastReviewed).toLocaleDateString()}`
                           : 'Not reviewed yet'
@@ -328,7 +330,7 @@ export default function DeckPageClient({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="hover:bg-neutral-100"
+                          className="hover:bg-neutral-100 dark:hover:bg-white/5 dark:text-neutral-200"
                           onClick={() => {
                             setEditingCard(card);
                             form.reset({ front: card.front, back: card.back });
@@ -340,7 +342,7 @@ export default function DeckPageClient({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="hover:bg-red-50 hover:text-red-600"
+                          className="hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/10 dark:hover:text-red-400"
                           onClick={() => handleDelete(card.id)}
                         >
                           <Trash2 className="h-4 w-4" />
