@@ -1,15 +1,20 @@
+// app/layout.tsx
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import { SessionProvider } from "@/components/SessionProvider"
 import { ThemeProvider } from "@/components/theme-provider"
 import Navbar from '@/components/Navbar'
+import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
-  title: 'Flashcard App',
-  description: 'Learn and memorize with spaced repetition',
+  title: 'Flashcards',
+  description: 'Modern spaced repetition learning',
 }
 
 function NavbarWrapper() {
@@ -26,18 +31,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${inter.className} bg-[#F5F2EA] min-h-screen`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
           disableTransitionOnChange
         >
           <NavbarWrapper />
           <SessionProvider>
-            {children}
+            <main className="pt-20 min-h-[calc(100vh-4rem)]">
+              {children}
+            </main>
           </SessionProvider>
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>

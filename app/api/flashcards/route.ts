@@ -9,17 +9,38 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'DeckId is required' }, { status: 400 });
   }
 
-  const flashcards = await getFlashcards(deckId);
-  return NextResponse.json(flashcards);
+  try {
+    const flashcards = await getFlashcards(deckId);
+    console.log('Fetched flashcards:', flashcards); // Add logging
+    return NextResponse.json(flashcards);
+  } catch (error) {
+    console.error('Error fetching flashcards:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch flashcards' },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
-  const { deckId, front, back } = await request.json();
+  try {
+    const { deckId, front, back } = await request.json();
 
-  if (!deckId || !front || !back) {
-    return NextResponse.json({ error: 'DeckId, front, and back are required' }, { status: 400 });
+    if (!deckId || !front || !back) {
+      return NextResponse.json(
+        { error: 'DeckId, front, and back are required' },
+        { status: 400 }
+      );
+    }
+
+    const newFlashcard = await createFlashcard(deckId, front, back);
+    console.log('Created flashcard:', newFlashcard); // Add logging
+    return NextResponse.json(newFlashcard);
+  } catch (error) {
+    console.error('Error creating flashcard:', error);
+    return NextResponse.json(
+      { error: 'Failed to create flashcard' },
+      { status: 500 }
+    );
   }
-
-  const newFlashcard = await createFlashcard(deckId, front, back);
-  return NextResponse.json(newFlashcard);
 }
