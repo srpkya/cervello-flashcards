@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Deck, Flashcard } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -24,18 +25,19 @@ const flashcardSchema = z.object({
 
 type FlashcardFormData = z.infer<typeof flashcardSchema>
 
-export default function DeckPageClient({ 
-  initialDeck, 
-  initialFlashcards 
-}: { 
-  initialDeck: Deck, 
-  initialFlashcards: Flashcard[] 
+export default function DeckPageClient({
+  initialDeck,
+  initialFlashcards
+}: {
+  initialDeck: Deck,
+  initialFlashcards: Flashcard[]
 }) {
   const [deck] = useState(initialDeck)
   const [flashcards, setFlashcards] = useState(initialFlashcards)
   const [isCreating, setIsCreating] = useState(false)
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null)
   const { toast } = useToast()
+  const router = useRouter()
 
   const form = useForm({
     resolver: zodResolver(flashcardSchema),
@@ -88,7 +90,7 @@ export default function DeckPageClient({
         }
 
         const updatedCard = await response.json();
-        setFlashcards(prevCards => prevCards.map(card => 
+        setFlashcards(prevCards => prevCards.map(card =>
           card.id === editingCard.id ? updatedCard : card
         ));
 
@@ -140,9 +142,9 @@ export default function DeckPageClient({
         const response = await fetch(`/api/flashcards/${id}`, {
           method: 'DELETE'
         });
-        
+
         if (!response.ok) throw new Error('Failed to delete flashcard');
-        
+
         setFlashcards(prevCards => prevCards.filter(card => card.id !== id));
         toast({
           title: "Success",
@@ -178,14 +180,12 @@ export default function DeckPageClient({
                     {deck.description}
                   </CardDescription>
                 </div>
-                <Button 
-                  asChild
+                <Button
+                  onClick={() => router.push(`/review?deckId=${deck.id}`)}
                   className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
                 >
-                  <Link href={`/review?deckId=${deck.id}`}>
-                    <PlayCircle className="mr-2 h-4 w-4" />
-                    Start Review
-                  </Link>
+                  <PlayCircle className="mr-2 h-4 w-4" />
+                  Start Review
                 </Button>
               </div>
             </CardHeader>
@@ -207,7 +207,7 @@ export default function DeckPageClient({
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Due Today</p>
                     <p className="text-2xl font-light dark:text-white">
-                      {flashcards.filter(card => 
+                      {flashcards.filter(card =>
                         !card.nextReview || new Date(card.nextReview) <= new Date()
                       ).length}
                     </p>
@@ -218,7 +218,7 @@ export default function DeckPageClient({
             <CardFooter className="border-t border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-white/[0.02]">
               <Dialog open={isCreating} onOpenChange={setIsCreating}>
                 <DialogTrigger asChild>
-                  <Button 
+                  <Button
                     variant="outline"
                     className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
                   >
@@ -241,10 +241,10 @@ export default function DeckPageClient({
                           <FormItem>
                             <FormLabel className="dark:text-neutral-200">Front</FormLabel>
                             <FormControl>
-                              <Textarea 
+                              <Textarea
                                 placeholder="Enter the front side content"
                                 className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -258,10 +258,10 @@ export default function DeckPageClient({
                           <FormItem>
                             <FormLabel className="dark:text-neutral-200">Back</FormLabel>
                             <FormControl>
-                              <Textarea 
+                              <Textarea
                                 placeholder="Enter the back side content"
                                 className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -269,7 +269,7 @@ export default function DeckPageClient({
                         )}
                       />
                       <div className="flex justify-end">
-                        <Button 
+                        <Button
                           type="submit"
                           className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
                         >
@@ -321,7 +321,7 @@ export default function DeckPageClient({
                   <CardFooter className="border-t border-neutral-100 dark:border-white/5 pt-4">
                     <div className="flex justify-between items-center w-full">
                       <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {card.lastReviewed 
+                        {card.lastReviewed
                           ? `Last reviewed ${new Date(card.lastReviewed).toLocaleDateString()}`
                           : 'Not reviewed yet'
                         }

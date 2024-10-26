@@ -1,28 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Menu, X, BookOpen, LayoutDashboard, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 
 const Navbar = () => {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
-  const NavLink = ({ href, children, icon: Icon }: { 
+  const NavLink = ({ 
+    href, 
+    children, 
+    icon: Icon 
+  }: { 
     href: string; 
     children: React.ReactNode;
     icon: React.ElementType;
   }) => {
+    const pathname = usePathname()
+    const router = useRouter()
     const isActive = pathname === href
+    
     return (
-      <Link 
-        href={href} 
+      <button
+        onClick={() => router.push(href)}
         className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-all duration-200 ${
           isActive 
             ? 'dark:bg-white/10 dark:text-white bg-neutral-100 text-neutral-900' 
@@ -31,7 +39,7 @@ const Navbar = () => {
       >
         <Icon size={18} />
         <span className="font-light">{children}</span>
-      </Link>
+      </button>
     )
   }
 

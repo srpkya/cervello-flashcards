@@ -21,7 +21,8 @@ export default function ReviewPageClient({
   const [currentCardIndex, setCurrentCardIndex] = useState(0)
   const [isReviewComplete, setIsReviewComplete] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [totalReviewed, setTotalReviewed] = useState(0)
+  const [initialCount] = useState(initialFlashcards.length)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -34,10 +35,10 @@ export default function ReviewPageClient({
         const data = await response.json();
         if (Array.isArray(data) && data.length > 0) {
           setFlashcards(data);
-          setProgress(0);
+          setTotalReviewed(0);
         } else {
           setFlashcards(initialFlashcards);
-          setProgress(0);
+          setTotalReviewed(0);
         }
       } catch (error) {
         console.error("Error fetching flashcards:", error);
@@ -64,7 +65,6 @@ export default function ReviewPageClient({
       setCurrentCardIndex(0);
     }
     setIsFlipped(false);
-    updateProgress();
   };
 
   const handleKnown = async () => {
@@ -94,6 +94,7 @@ export default function ReviewPageClient({
         throw new Error('Failed to update flashcard');
       }
 
+      setTotalReviewed(prev => prev + 1);
       const newFlashcards = flashcards.filter((_, index) => index !== currentCardIndex);
       setFlashcards(newFlashcards);
 
@@ -104,7 +105,6 @@ export default function ReviewPageClient({
       }
 
       setIsFlipped(false);
-      updateProgress();
 
     } catch (error) {
       console.error("Failed to update flashcard:", error);
@@ -116,12 +116,7 @@ export default function ReviewPageClient({
     }
   };
 
-  const updateProgress = () => {
-    const totalCards = initialFlashcards.length;
-    const remainingCards = flashcards.length;
-    const completedCards = totalCards - remainingCards;
-    setProgress((completedCards / totalCards) * 100);
-  };
+  const progress = Math.round((totalReviewed / initialCount) * 100);
 
   if (flashcards.length === 0 && !isReviewComplete) {
     return (
@@ -172,7 +167,7 @@ export default function ReviewPageClient({
               setFlashcards(initialFlashcards);
               setCurrentCardIndex(0);
               setIsReviewComplete(false);
-              setProgress(0);
+              setTotalReviewed(0);
             }}
             className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
           >
@@ -201,7 +196,7 @@ export default function ReviewPageClient({
             </Link>
           </Button>
           <div className="text-sm text-neutral-600 dark:text-neutral-400">
-            Card {currentCardIndex + 1} of {flashcards.length}
+            Reviewed {totalReviewed} of {initialCount} cards
           </div>
         </div>
         <Progress 

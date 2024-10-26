@@ -11,7 +11,6 @@ export async function GET(request: Request) {
 
   try {
     const flashcards = await getFlashcards(deckId);
-    console.log('Fetched flashcards:', flashcards); // Add logging
     return NextResponse.json(flashcards);
   } catch (error) {
     console.error('Error fetching flashcards:', error);
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
     }
 
     const newFlashcard = await createFlashcard(deckId, front, back);
-    console.log('Created flashcard:', newFlashcard); // Add logging
+    console.log('Created flashcard:', newFlashcard);
     return NextResponse.json(newFlashcard);
   } catch (error) {
     console.error('Error creating flashcard:', error);
