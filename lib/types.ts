@@ -34,6 +34,13 @@ export interface Flashcard {
   interval: number;
 }
 
+export interface ReviewData {
+  lastReviewed: Date | string;
+  nextReview: Date | string;
+  easeFactor: number;
+  interval: number;
+}
+
 
 export interface ExtendedUser {
   id: string

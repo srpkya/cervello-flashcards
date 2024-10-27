@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { decks, flashcards } from '@/lib/schema';
+import { deck, flashcard } from '@/lib/schema';
 import { eq } from 'drizzle-orm/expressions';
 
 export async function GET(request: Request) {
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const db = await getDb();
 
   if (action === 'getDecks' && userId) {
-    const result = await db.select().from(decks).where(eq(decks.userId, userId));
+    const result = await db.select().from(deck).where(eq(deck.userId, userId));
     return NextResponse.json(result);
   }
 
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       updatedAt: new Date(),
     };
 
-    const result = await db.insert(decks).values(newDeck);
+    const result = await db.insert(deck).values(newDeck);
     return NextResponse.json({ ...newDeck, ...result });
   }
 

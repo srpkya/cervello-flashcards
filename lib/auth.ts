@@ -36,11 +36,9 @@ export const authOptions: NextAuthOptions = {
     async createUser(data) {
       const db = await getDb();
       try {
-        // First check if user exists
         if (data.email) {
           const existingUser = await db.select().from(user).where(eq(user.email, data.email)).get();
           if (existingUser) {
-            // If user exists, return the existing user without trying to create a new one
             return {
               id: existingUser.id,
               name: existingUser.name,
@@ -51,7 +49,6 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        // Only create a new user if one doesn't exist
         const newUser = {
           id: crypto.randomUUID(),
           name: data.name,
@@ -71,14 +68,12 @@ export const authOptions: NextAuthOptions = {
     async linkAccount(data) {
       const db = await getDb();
       try {
-        // Check if account already exists
         const existingAccount = await db.select()
           .from(account)
           .where(eq(account.providerAccountId, data.providerAccountId))
           .get();
 
         if (existingAccount) {
-          // If account exists, return without trying to create a new one
           return;
         }
 

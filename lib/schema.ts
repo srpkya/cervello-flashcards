@@ -32,10 +32,10 @@ export const flashcard = sqliteTable('flashcard', {
     .references(() => deck.id, { onDelete: 'cascade' }),
   front: text('front').notNull(),
   back: text('back').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-  lastReviewed: integer('last_reviewed', { mode: 'timestamp_ms' }),
-  nextReview: integer('next_review', { mode: 'timestamp_ms' }),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  lastReviewed: integer('last_reviewed'),
+  nextReview: integer('next_review'),
   easeFactor: integer('ease_factor').notNull().default(250),
   interval: integer('interval').notNull().default(0),
 });
@@ -47,8 +47,8 @@ export const deck = sqliteTable('deck', {
     .references(() => user.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
 });
 
 export const studySession = sqliteTable('study_session', {
