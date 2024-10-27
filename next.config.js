@@ -2,32 +2,19 @@
 const nextConfig = {
   reactStrictMode: true,
   experimental: {
-    // This might help with some caching issues
     forceSwcTransforms: true,
   },
   webpack: (config, { isServer }) => {
-    // Ignore specific file types
-    config.module.rules.push({
-      test: /\.(md|txt|LICENSE)$/,
-      type: 'asset/resource',
-    });
+    // Handle modules
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      punycode: false
+    };
 
-    // Ignore .node files
-    config.module.rules.push({
-      test: /\.node$/,
-      use: 'null-loader',
-    });
-
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        punycode: false,
-      };
-    }
-
-    // Ignore specific problematic modules
+    // Externals configuration
     config.externals = [
       ...(config.externals || []),
+      { punycode: 'punycode' },
       function({ context, request }, callback) {
         if (/^@libsql\//.test(request)) {
           return callback(null, 'commonjs ' + request);
@@ -36,13 +23,43 @@ const nextConfig = {
       },
     ];
 
-    // Disable caching for development
-    config.cache = false;
+    // Suppress warnings
+    config.ignoreWarnings = [
+      { module: /node_modules\/punycode/ }
+    ];
 
     return config;
   },
-  // This can help with some build issues
-  swcMinify: false,
+  // Additional security headers
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'X-DNS-Prefetch-Control',
+            value: 'on'
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains'
+          },
+          {
+            key: 'X-Frame-Options',
+            value: 'SAMEORIGIN'
+          },
+          {
+            key: 'X-Content-Type-Options',
+            value: 'nosniff'
+          },
+          {
+            key: 'Referrer-Policy',
+            value: 'origin-when-cross-origin'
+          }
+        ]
+      }
+    ];
+  }
 };
 
 module.exports = nextConfig;

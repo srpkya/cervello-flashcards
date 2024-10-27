@@ -1,4 +1,4 @@
-import { Session } from "next-auth"
+import { Session, DefaultSession } from "next-auth"
 
 export interface Deck {
   id: string;
@@ -10,15 +10,15 @@ export interface Deck {
 }
 
 export type Config = {
-  schema: string;
-  out: string;
-  dialect: "sqlite";
-  driver: "d1-http" | "expo" | "turso" | undefined; 
+  schema: string
+  out: string
+  dialect: "sqlite"
+  driver: "d1-http" | "expo" | "turso" | undefined
   dbCredentials: {
-    url: string;
-    authToken: string | undefined;
-  };
-};
+    url: string
+    authToken: string | undefined
+  }
+}
 
 
 export interface Flashcard {
@@ -34,13 +34,25 @@ export interface Flashcard {
   interval: number;
 }
 
+
 export interface ExtendedUser {
-  id: string;
-  name?: string | null;
-  email?: string | null;
-  image?: string | null;
+  id: string
+  name?: string | null
+  email?: string | null
+  image?: string | null
 }
 
-export interface ExtendedSession extends Session {
-  user: ExtendedUser;
+export interface ExtendedSession extends DefaultSession {
+  user: ExtendedUser
 }
+
+export interface RouteHandlerContext<T = Record<string, string>> {
+  params: T;
+}
+
+export interface ApiResponse<T = any> {
+  data?: T;
+  error?: string;
+  message?: string;
+}
+

@@ -11,23 +11,22 @@ CREATE TABLE `account` (
 	`scope` text,
 	`id_token` text,
 	`session_state` text,
-	PRIMARY KEY(`provider`, `providerAccountId`),
-	FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`userId`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `decks` (
+CREATE TABLE `deck` (
 	`id` text PRIMARY KEY NOT NULL,
-	`userId` text NOT NULL,
+	`user_id` text NOT NULL,
 	`title` text NOT NULL,
 	`description` text,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `flashcards` (
+CREATE TABLE `flashcard` (
 	`id` text PRIMARY KEY NOT NULL,
-	`deckId` text NOT NULL,
+	`deck_id` text NOT NULL,
 	`front` text NOT NULL,
 	`back` text NOT NULL,
 	`created_at` integer NOT NULL,
@@ -36,17 +35,20 @@ CREATE TABLE `flashcards` (
 	`next_review` integer,
 	`ease_factor` integer DEFAULT 250 NOT NULL,
 	`interval` integer DEFAULT 0 NOT NULL,
-	FOREIGN KEY (`deckId`) REFERENCES `decks`(`id`) ON UPDATE no action ON DELETE no action
+	FOREIGN KEY (`deck_id`) REFERENCES `deck`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `session` (
-	`sessionToken` text PRIMARY KEY NOT NULL,
-	`userId` text NOT NULL,
-	`expires` integer NOT NULL,
-	FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+CREATE TABLE `study_session` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`cards_studied` integer NOT NULL,
+	`start_time` integer NOT NULL,
+	`end_time` integer NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `user`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE TABLE `users` (
+CREATE TABLE `user` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text,
 	`email` text,
@@ -54,10 +56,4 @@ CREATE TABLE `users` (
 	`image` text
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
-CREATE TABLE `verificationToken` (
-	`identifier` text NOT NULL,
-	`token` text NOT NULL,
-	`expires` integer NOT NULL,
-	PRIMARY KEY(`identifier`, `token`)
-);
+CREATE UNIQUE INDEX `user_email_unique` ON `user` (`email`);

@@ -1,19 +1,26 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/mode-toggle'
 import { Menu, X, BookOpen, LayoutDashboard, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePathname } from 'next/navigation'
 
 const Navbar = () => {
   const pathname = usePathname()
   const { data: session, status } = useSession()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const router = useRouter()
+
+  const handleSignOut = async () => {
+    await signOut({ 
+      callbackUrl: "/",
+      redirect: true
+    })
+  }
 
   const NavLink = ({ 
     href, 
@@ -24,8 +31,6 @@ const Navbar = () => {
     children: React.ReactNode;
     icon: React.ElementType;
   }) => {
-    const pathname = usePathname()
-    const router = useRouter()
     const isActive = pathname === href
     
     return (
@@ -65,7 +70,7 @@ const Navbar = () => {
               <ModeToggle />
               {status === 'authenticated' ? (
                 <Button 
-                  onClick={() => signOut()}
+                  onClick={handleSignOut}
                   variant="outline"
                   className="border-neutral-300 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-600 dark:text-white"
                 >
@@ -110,7 +115,7 @@ const Navbar = () => {
                   <ModeToggle />
                   {status === 'authenticated' ? (
                     <Button 
-                      onClick={() => signOut()}
+                      onClick={handleSignOut}
                       variant="outline"
                       className="border-neutral-300 hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-600 dark:text-white"
                     >

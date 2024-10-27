@@ -1,29 +1,72 @@
-'use client'
+'use client';
 
-import React, { useState, useEffect } from 'react'
-import { Flashcard } from '@/lib/types'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { useToast } from "@/hooks/use-toast"
-import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ThumbsUp, ThumbsDown, RotateCcw, CheckCircle } from 'lucide-react'
-import { Progress } from '@/components/ui/progress'
-import { Card } from '@/components/ui/card'
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { Flashcard, ExtendedSession } from '@/lib/types';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from 'framer-motion';
+import { ChevronLeft, ThumbsUp, ThumbsDown, RotateCw, CheckCircle } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Card } from '@/components/ui/card';
 
-export default function ReviewPageClient({ 
-  initialFlashcards,
-  deckId
-}: { 
-  initialFlashcards: Flashcard[]
-  deckId: string
-}) {
-  const [flashcards, setFlashcards] = useState<Flashcard[]>([])
-  const [currentCardIndex, setCurrentCardIndex] = useState(0)
-  const [isReviewComplete, setIsReviewComplete] = useState(false)
-  const [isFlipped, setIsFlipped] = useState(false)
-  const [totalReviewed, setTotalReviewed] = useState(0)
-  const [initialCount] = useState(initialFlashcards.length)
-  const { toast } = useToast()
+interface ReviewPageClientProps {
+  initialFlashcards: Flashcard[];
+  deckId: string;
+}
+
+export default function ReviewPageClient({ initialFlashcards, deckId }: ReviewPageClientProps) {
+  const { data: session } = useSession() as { data: ExtendedSession | null };
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const [isReviewComplete, setIsReviewComplete] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [totalReviewed, setTotalReviewed] = useState(0);
+  const [initialCount] = useState(initialFlashcards.length);
+  const { toast } = useToast();
+
+  const [sessionStart, setSessionStart] = useState<Date>(new Date());
+  const [cardsStudied, setCardsStudied] = useState(0);
+  const [lastActionTime, setLastActionTime] = useState<Date>(new Date());
+
+  const saveStudySession = useCallback(async () => {
+    if (!session?.user?.id || cardsStudied === 0) return;
+
+    const now = new Date();
+    const activeStudyTime = Math.max(
+      0,
+      now.getTime() - lastActionTime.getTime() > 300000 
+        ? lastActionTime.getTime() - sessionStart.getTime()
+        : now.getTime() - sessionStart.getTime()
+    );
+
+    try {
+      const response = await fetch('/api/study-sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: session.user.id,
+          cardsStudied,
+          startTime: sessionStart.toISOString(),
+          endTime: new Date(sessionStart.getTime() + activeStudyTime).toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save study session');
+      }
+    } catch (error) {
+      console.error('Error saving study session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save study progress",
+        variant: "destructive",
+      });
+    }
+  }, [session?.user?.id, cardsStudied, sessionStart, lastActionTime, toast]);
 
   useEffect(() => {
     const fetchFlashcards = async () => {
@@ -56,7 +99,15 @@ export default function ReviewPageClient({
     }
   }, [deckId, initialFlashcards, toast]);
 
-  const handleTryAgain = () => {
+  useEffect(() => {
+    return () => {
+      if (cardsStudied > 0) {
+        saveStudySession();
+      }
+    };
+  }, [cardsStudied, saveStudySession]);
+
+  const handleTryAgain = useCallback(() => {
     if (flashcards.length === 0) return;
     
     const currentCard = flashcards[currentCardIndex];
@@ -65,9 +116,10 @@ export default function ReviewPageClient({
       setCurrentCardIndex(0);
     }
     setIsFlipped(false);
-  };
+    setLastActionTime(new Date());
+  }, [flashcards, currentCardIndex]);
 
-  const handleKnown = async () => {
+  const handleKnown = useCallback(async () => {
     if (flashcards.length === 0) return;
 
     const currentCard = flashcards[currentCardIndex];
@@ -95,11 +147,15 @@ export default function ReviewPageClient({
       }
 
       setTotalReviewed(prev => prev + 1);
+      setCardsStudied(prev => prev + 1);
+      setLastActionTime(new Date());
+      
       const newFlashcards = flashcards.filter((_, index) => index !== currentCardIndex);
       setFlashcards(newFlashcards);
 
       if (newFlashcards.length === 0) {
         setIsReviewComplete(true);
+        await saveStudySession();
       } else if (currentCardIndex >= newFlashcards.length) {
         setCurrentCardIndex(0);
       }
@@ -114,7 +170,17 @@ export default function ReviewPageClient({
         variant: "destructive",
       });
     }
-  };
+  }, [flashcards, currentCardIndex, saveStudySession, toast]);
+
+  const handleStartOver = useCallback(() => {
+    setFlashcards(initialFlashcards);
+    setCurrentCardIndex(0);
+    setIsReviewComplete(false);
+    setTotalReviewed(0);
+    setCardsStudied(0);
+    setSessionStart(new Date());
+    setLastActionTime(new Date());
+  }, [initialFlashcards]);
 
   const progress = Math.round((totalReviewed / initialCount) * 100);
 
@@ -150,7 +216,9 @@ export default function ReviewPageClient({
           <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
         </motion.div>
         <h2 className="text-3xl font-light text-neutral-800 dark:text-white mb-3">Review Complete!</h2>
-        <p className="text-neutral-600 dark:text-neutral-400 mb-6">Great job! You've reviewed all the cards.</p>
+        <p className="text-neutral-600 dark:text-neutral-400 mb-6">
+          Great job! You&apos;ve reviewed {cardsStudied} cards in this session.
+        </p>
         <div className="flex space-x-4">
           <Button 
             asChild 
@@ -163,15 +231,10 @@ export default function ReviewPageClient({
             </Link>
           </Button>
           <Button 
-            onClick={() => {
-              setFlashcards(initialFlashcards);
-              setCurrentCardIndex(0);
-              setIsReviewComplete(false);
-              setTotalReviewed(0);
-            }}
+            onClick={handleStartOver}
             className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
           >
-            <RotateCcw className="mr-2 h-4 w-4" />
+            <RotateCw className="mr-2 h-4 w-4" />
             Start Over
           </Button>
         </div>

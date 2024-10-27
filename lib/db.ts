@@ -1,13 +1,22 @@
 import { drizzle } from 'drizzle-orm/libsql';
-import { eq } from 'drizzle-orm/expressions';
-import { decks, flashcards } from './schema';
+import { deck, flashcard } from './schema';
 import { Deck, Flashcard } from './types';
 import * as schema from './schema';
+import { SQLiteColumn } from 'drizzle-orm/sqlite-core';
 import { createClient } from '@libsql/client';
-
+import { studySession } from './schema';
+import { and, eq, gte, sql } from 'drizzle-orm';
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
-// This is needed for NextAuth adapter
+export interface StudySessionStats {
+  totalCardsToday: number;
+  studyTimeToday: number;
+  lastThirtyDays: Array<{
+    date: string;
+    count: number;
+  }>;
+}
+
 export async function getDb() {
   if (typeof window !== 'undefined') {
     throw new Error('Cannot use database client in browser environment');
@@ -18,26 +27,32 @@ export async function getDb() {
       url: process.env.NEXT_PUBLIC_TURSO_DATABASE_URL!,
       authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
     });
-    db = drizzle(client, { schema });
+    
+    db = drizzle(client, { 
+      schema,
+      logger: false
+    });
   }
   
   return db;
 }
 
-// Create a new client for each request
-async function createDbClient() {
+export async function createDbClient() {
   const client = createClient({
     url: process.env.NEXT_PUBLIC_TURSO_DATABASE_URL!,
     authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
   });
-  return drizzle(client, { schema });
+  
+  return drizzle(client, { 
+    schema,
+    logger: false
+  });
 }
 
-// Decks functions
 export async function getDecks(userId: string): Promise<Deck[]> {
   const db = await createDbClient();
   try {
-    const results = await db.select().from(decks).where(eq(decks.userId, userId));
+    const results = await db.select().from(deck).where(eq(deck.userId, userId));
     return results.map(deck => ({
       ...deck,
       createdAt: new Date(deck.createdAt),
@@ -52,7 +67,7 @@ export async function getDecks(userId: string): Promise<Deck[]> {
 export async function getDeck(id: string): Promise<Deck | undefined> {
   const db = await createDbClient();
   try {
-    const result = await db.select().from(decks).where(eq(decks.id, id)).get();
+    const result = await db.select().from(deck).where(eq(deck.id, id)).get();
     if (!result) return undefined;
     
     return {
@@ -79,7 +94,7 @@ export async function createDeck(userId: string, title: string, description: str
   };
   
   try {
-    await db.insert(decks).values(newDeck);
+    await db.insert(deck).values(newDeck);
     
     const createdDeck = await getDeck(newDeck.id);
     if (!createdDeck) {
@@ -98,9 +113,9 @@ export async function updateDeck(id: string, title: string, description: string)
   const now = new Date();
   
   try {
-    await db.update(decks)
+    await db.update(deck)
       .set({ title, description, updatedAt: now })
-      .where(eq(decks.id, id));
+      .where(eq(deck.id, id));
     
     const updatedDeck = await getDeck(id);
     if (!updatedDeck) {
@@ -116,7 +131,7 @@ export async function updateDeck(id: string, title: string, description: string)
 export async function deleteDeck(id: string): Promise<void> {
   const db = await createDbClient();
   try {
-    await db.delete(decks).where(eq(decks.id, id));
+    await db.delete(deck).where(eq(deck.id, id));
   } catch (error) {
     console.error('Error in deleteDeck:', error);
     throw error;
@@ -133,8 +148,8 @@ export async function getFlashcards(deckId: string): Promise<Flashcard[]> {
     
     const results = await db
       .select()
-      .from(flashcards)
-      .where(eq(flashcards.deckId, deckId))
+      .from(flashcard)
+      .where(eq(flashcard.deckId, deckId))
       .execute();
     
     console.log('Raw query results:', results);
@@ -169,8 +184,8 @@ export async function getFlashcard(id: string): Promise<Flashcard | undefined> {
   const db = await createDbClient();
   try {
     const result = await db.select()
-      .from(flashcards)
-      .where(eq(flashcards.id, id))
+      .from(flashcard)
+      .where(eq(flashcard.id, id))
       .get();
     
     if (!result) return undefined;
@@ -207,7 +222,7 @@ export async function createFlashcard(deckId: string, front: string, back: strin
   };
   
   try {
-    await db.insert(flashcards).values(newFlashcard);
+    await db.insert(flashcard).values(newFlashcard);
 
     const createdFlashcard = await getFlashcard(newFlashcard.id);
     if (!createdFlashcard) {
@@ -248,9 +263,9 @@ export async function updateFlashcard(
       if (reviewData.interval !== undefined) updateData.interval = reviewData.interval;
     }
 
-    await db.update(flashcards)
+    await db.update(flashcard)
       .set(updateData)
-      .where(eq(flashcards.id, id));
+      .where(eq(flashcard.id, id));
 
     const updatedCard = await getFlashcard(id);
     if (!updatedCard) {
@@ -267,14 +282,13 @@ export async function updateFlashcard(
 export async function deleteFlashcard(id: string): Promise<void> {
   const db = await createDbClient();
   try {
-    await db.delete(flashcards).where(eq(flashcards.id, id));
+    await db.delete(flashcard).where(eq(flashcard.id, id));
   } catch (error) {
     console.error('Error deleting flashcard:', error);
     throw error;
   }
 }
 
-// Review-specific functions
 export async function getDueFlashcards(deckId: string): Promise<Flashcard[]> {
   const db = await createDbClient();
   const now = new Date();
@@ -282,8 +296,8 @@ export async function getDueFlashcards(deckId: string): Promise<Flashcard[]> {
   try {
     const results = await db
       .select()
-      .from(flashcards)
-      .where(eq(flashcards.deckId, deckId))
+      .from(flashcard)
+      .where(eq(flashcard.deckId, deckId))
       .execute();
 
     return results
@@ -315,7 +329,7 @@ export async function updateFlashcardReviewData(
   const db = await createDbClient();
   
   try {
-    await db.update(flashcards)
+    await db.update(flashcard)
       .set({
         lastReviewed: reviewData.lastReviewed,
         nextReview: reviewData.nextReview,
@@ -323,7 +337,7 @@ export async function updateFlashcardReviewData(
         interval: reviewData.interval,
         updatedAt: new Date()
       })
-      .where(eq(flashcards.id, id));
+      .where(eq(flashcard.id, id));
 
     const updatedCard = await getFlashcard(id);
     if (!updatedCard) {
@@ -335,4 +349,77 @@ export async function updateFlashcardReviewData(
     console.error('Error updating flashcard review data:', error);
     throw error;
   }
+}
+
+export async function getStudyStats(userId: string): Promise<StudySessionStats> {
+  const db = await createDbClient();
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+  // Convert timestamps to SQLite-compatible format using sql template
+  const todayStart = sql`datetime(${today.getTime() / 1000}, 'unixepoch')`;
+  const thirtyDaysAgoStart = sql`datetime(${thirtyDaysAgo.getTime() / 1000}, 'unixepoch')`;
+
+  const todayStats = await db
+    .select({
+      cardsStudied: sql<number>`sum(${studySession.cardsStudied})`,
+      totalTime: sql<number>`sum((julianday(datetime(${studySession.endTime} / 1000, 'unixepoch')) - julianday(datetime(${studySession.startTime} / 1000, 'unixepoch'))) * 86400)`,
+    })
+    .from(studySession)
+    .where(
+      and(
+        eq(studySession.userId, userId),
+        sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= ${todayStart}`
+      )
+    )
+    .get();
+
+  const dailyStats = await db
+    .select({
+      date: sql<string>`date(${studySession.startTime} / 1000, 'unixepoch')`,
+      count: sql<number>`sum(${studySession.cardsStudied})`,
+    })
+    .from(studySession)
+    .where(
+      and(
+        eq(studySession.userId, userId),
+        sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= ${thirtyDaysAgoStart}`
+      )
+    )
+    .groupBy(sql`date(${studySession.startTime} / 1000, 'unixepoch')`)
+    .execute();
+
+  return {
+    totalCardsToday: todayStats?.cardsStudied || 0,
+    studyTimeToday: todayStats?.totalTime || 0,
+    lastThirtyDays: dailyStats.map(stat => ({
+      date: stat.date,
+      count: Number(stat.count),
+    })),
+  };
+}
+
+export async function createStudySession(
+  userId: string,
+  cardsStudied: number,
+  startTime: Date,
+  endTime: Date
+): Promise<void> {
+  const db = await createDbClient();
+  
+  const session = {
+    userId,
+    cardsStudied,
+    startTime: startTime, 
+    endTime: endTime,      
+    createdAt: new Date(),
+    id: crypto.randomUUID(),
+  };
+  
+  await db.insert(studySession).values(session);
 }

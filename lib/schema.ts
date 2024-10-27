@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+
 export const user = sqliteTable('user', {
   id: text('id').notNull().primaryKey(),
   name: text('name'),
@@ -8,7 +9,7 @@ export const user = sqliteTable('user', {
 });
 
 export const account = sqliteTable('account', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
+  id: text('id').notNull().primaryKey(),
   userId: text('userId')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
@@ -22,42 +23,13 @@ export const account = sqliteTable('account', {
   scope: text('scope'),
   id_token: text('id_token'),
   session_state: text('session_state'),
-}, (table) => ({
-  providerProviderAccountIdIndex: index('provider_providerAccountId_idx').on(
-    table.provider,
-    table.providerAccountId
-  ),
-}));
+});
 
-export const session = sqliteTable('session', {
-  sessionToken: text('sessionToken').notNull().primaryKey(),
-  userId: text('userId')
+export const flashcard = sqliteTable('flashcard', {
+  id: text('id').notNull().primaryKey(),
+  deckId: text('deck_id')
     .notNull()
-    .references(() => user.id, { onDelete: 'cascade' }),
-  expires: integer('expires', { mode: 'timestamp_ms' }).notNull(),
-});
-
-export const verificationToken = sqliteTable('verificationToken', {
-  identifier: text('identifier').notNull(),
-  token: text('token').notNull(),
-  expires: integer('expires', { mode: 'timestamp_ms' }).notNull(),
-}, (table) => ({
-  compoundKey: primaryKey(table.identifier, table.token),
-}));
-
-
-export const decks = sqliteTable('decks', {
-  id: text('id').primaryKey(),
-  userId: text('userId').notNull().references(() => user.id),
-  title: text('title').notNull(),
-  description: text('description'),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
-  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
-});
-
-export const flashcards = sqliteTable('flashcards', {
-  id: text('id').primaryKey(),
-  deckId: text('deckId').notNull().references(() => decks.id),
+    .references(() => deck.id, { onDelete: 'cascade' }),
   front: text('front').notNull(),
   back: text('back').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
@@ -68,3 +40,24 @@ export const flashcards = sqliteTable('flashcards', {
   interval: integer('interval').notNull().default(0),
 });
 
+export const deck = sqliteTable('deck', {
+  id: text('id').notNull().primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+});
+
+export const studySession = sqliteTable('study_session', {
+  id: text('id').notNull().primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  cardsStudied: integer('cards_studied').notNull(),
+  startTime: integer('start_time', { mode: 'timestamp_ms' }).notNull(),
+  endTime: integer('end_time', { mode: 'timestamp_ms' }).notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+});

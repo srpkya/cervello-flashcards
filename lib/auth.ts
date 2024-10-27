@@ -1,119 +1,164 @@
-import { NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import { DrizzleAdapter } from "@auth/drizzle-adapter"
-import { getDb } from "./db"
-import { Adapter, AdapterUser, AdapterAccount, AdapterSession, VerificationToken } from "@auth/core/adapters"
-import { Awaitable } from "next-auth"
+import { NextAuthOptions } from "next-auth";
+import GoogleProvider from "next-auth/providers/google";
+import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { getDb } from "./db";
+import { user, account } from "./schema";
+import { AdapterUser } from "next-auth/adapters";
+import { eq } from "drizzle-orm";
 
-async function getAdapter(): Promise<Adapter> {
-  const db = await getDb();
-  return DrizzleAdapter(db) as Adapter;
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      email?: string | null;
+      name?: string | null;
+      image?: string | null;
+    }
+  }
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: {
-    createUser: async (user: Omit<AdapterUser, "id">) => {
-      const adapter = await getAdapter();
-      try {
-        const newUser = { ...user, id: crypto.randomUUID() };
-        return (await adapter.createUser?.(newUser)) as Awaitable<AdapterUser>;
-      } catch (error: any) {
-        if (error.message.includes('UNIQUE constraint failed: user.email')) {
-          // User already exists, fetch and return the existing user
-          const existingUser = await adapter.getUserByEmail?.(user.email!);
-          if (existingUser) {
-            return existingUser as Awaitable<AdapterUser>;
-          }
-        }
-        // If it's a different error, or we couldn't find the existing user, rethrow
-        throw error;
-      }
-    },
-    getUser: async (id: string) => {
-      const adapter = await getAdapter();
-      return (adapter.getUser?.(id) ?? Promise.resolve(null)) as Awaitable<AdapterUser | null>;
-    },
-    getUserByEmail: async (email: string) => {
-      const adapter = await getAdapter();
-      return (adapter.getUserByEmail?.(email) ?? Promise.resolve(null)) as Awaitable<AdapterUser | null>;
-    },
-    getUserByAccount: async (providerAccountId: Pick<AdapterAccount, "provider" | "providerAccountId">) => {
-      const adapter = await getAdapter();
-      return (adapter.getUserByAccount?.(providerAccountId) ?? Promise.resolve(null)) as Awaitable<AdapterUser | null>;
-    },
-    updateUser: async (user: Partial<AdapterUser> & Pick<AdapterUser, "id">) => {
-      const adapter = await getAdapter();
-      return (adapter.updateUser?.(user) ?? Promise.resolve(null)) as Awaitable<AdapterUser>;
-    },
-    deleteUser: async (userId: string) => {
-      const adapter = await getAdapter();
-      return (adapter.deleteUser?.(userId) ?? Promise.resolve()) as Awaitable<void>;
-    },
-    linkAccount: async (account: AdapterAccount) => {
-      const adapter = await getAdapter();
-      const normalizedAccount: AdapterAccount = {
-        ...account,
-        token_type: account.token_type?.toLowerCase() as Lowercase<string> | undefined,
-        // Ensure all required properties are included
-        userId: account.userId,
-        type: account.type,
-        provider: account.provider,
-        providerAccountId: account.providerAccountId,
-      };
-      return (adapter.linkAccount?.(normalizedAccount) ?? Promise.resolve(normalizedAccount)) as Awaitable<AdapterAccount | null>;
-    },
-    unlinkAccount: async (providerAccountId: Pick<AdapterAccount, "provider" | "providerAccountId">) => {
-      const adapter = await getAdapter();
-      return (adapter.unlinkAccount?.(providerAccountId) ?? Promise.resolve()) as Awaitable<void>;
-    },
-    createSession: async (session: { sessionToken: string; userId: string; expires: Date }) => {
-      const adapter = await getAdapter();
-      return (adapter.createSession?.(session) ?? Promise.resolve(null)) as Awaitable<AdapterSession>;
-    },
-    getSessionAndUser: async (sessionToken: string) => {
-      const adapter = await getAdapter();
-      return (adapter.getSessionAndUser?.(sessionToken) ?? Promise.resolve(null)) as Awaitable<{ session: AdapterSession; user: AdapterUser } | null>;
-    },
-    updateSession: async (session: Partial<AdapterSession> & Pick<AdapterSession, "sessionToken">) => {
-      const adapter = await getAdapter();
-      return (adapter.updateSession?.(session) ?? Promise.resolve(null)) as Awaitable<AdapterSession | null>;
-    },
-    deleteSession: async (sessionToken: string) => {
-      const adapter = await getAdapter();
-      return (adapter.deleteSession?.(sessionToken) ?? Promise.resolve()) as Awaitable<void>;
-    },
-    createVerificationToken: async (token: VerificationToken) => {
-      const adapter = await getAdapter();
-      return (adapter.createVerificationToken?.(token) ?? Promise.resolve(null)) as Awaitable<VerificationToken | null>;
-    },
-    useVerificationToken: async (params: { identifier: string; token: string }) => {
-      const adapter = await getAdapter();
-      return (adapter.useVerificationToken?.(params) ?? Promise.resolve(null)) as Awaitable<VerificationToken | null>;
-    },
-  },
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
-  ],
-  secret: process.env.NEXTAUTH_SECRET,
-  session: {
-    strategy: "jwt",
-  },
-  callbacks: {
-    session: ({ session, token }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: token.sub,
+      authorization: {
+        params: {
+          prompt: "select_account",
+          access_type: "offline",
+          response_type: "code"
+        }
       },
     }),
-    jwt: ({ token, user }) => {
+  ],
+  adapter: {
+    ...DrizzleAdapter(await getDb()),
+    async createUser(data) {
+      const db = await getDb();
+      try {
+        // First check if user exists
+        if (data.email) {
+          const existingUser = await db.select().from(user).where(eq(user.email, data.email)).get();
+          if (existingUser) {
+            // If user exists, return the existing user without trying to create a new one
+            return {
+              id: existingUser.id,
+              name: existingUser.name,
+              email: existingUser.email,
+              emailVerified: existingUser.emailVerified,
+              image: existingUser.image
+            } as AdapterUser;
+          }
+        }
+
+        // Only create a new user if one doesn't exist
+        const newUser = {
+          id: crypto.randomUUID(),
+          name: data.name,
+          email: data.email,
+          emailVerified: data.emailVerified,
+          image: data.image
+        };
+
+        await db.insert(user).values(newUser);
+        return newUser as AdapterUser;
+      } catch (error) {
+        console.error("Error in createUser:", error);
+        throw error;
+      }
+    },
+
+    async linkAccount(data) {
+      const db = await getDb();
+      try {
+        // Check if account already exists
+        const existingAccount = await db.select()
+          .from(account)
+          .where(eq(account.providerAccountId, data.providerAccountId))
+          .get();
+
+        if (existingAccount) {
+          // If account exists, return without trying to create a new one
+          return;
+        }
+
+        const newAccount = {
+          ...data,
+          id: crypto.randomUUID(),
+        };
+        
+        await db.insert(account).values(newAccount);
+      } catch (error) {
+        console.error("Error in linkAccount:", error);
+        throw error;
+      }
+    },
+
+    async getUser(id) {
+      const db = await getDb();
+      try {
+        const result = await db.select().from(user).where(eq(user.id, id)).get();
+        return result as AdapterUser | null;
+      } catch (error) {
+        console.error("Error in getUser:", error);
+        return null;
+      }
+    },
+
+    async getUserByEmail(email) {
+      const db = await getDb();
+      try {
+        const result = await db.select().from(user).where(eq(user.email, email)).get();
+        return result as AdapterUser | null;
+      } catch (error) {
+        console.error("Error in getUserByEmail:", error);
+        return null;
+      }
+    },
+
+    async updateUser(data) {
+      const db = await getDb();
+      try {
+        if (!data.id) throw new Error("User ID is required");
+        await db.update(user)
+          .set({
+            name: data.name,
+            email: data.email,
+            image: data.image,
+            emailVerified: data.emailVerified
+          })
+          .where(eq(user.id, data.id));
+        
+        const updatedUser = await db.select().from(user).where(eq(user.id, data.id)).get();
+        if (!updatedUser) throw new Error("Failed to update user");
+        return updatedUser as AdapterUser;
+      } catch (error) {
+        console.error("Error in updateUser:", error);
+        throw error;
+      }
+    }
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60,
+  },
+  callbacks: {
+    async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
       }
       return token;
     },
+    async session({ session, token }) {
+      if (session?.user && token.sub) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
   },
-}
+  pages: {
+    signIn: '/auth/signin',
+    error: '/auth/error',
+  },
+  secret: process.env.NEXTAUTH_SECRET,
+};

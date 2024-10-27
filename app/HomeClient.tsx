@@ -96,7 +96,7 @@ export default function HomeClient() {
                 Start Learning Today
               </h2>
               <p className="text-neutral-600 dark:text-neutral-400 mb-8">
-                Join thousands of students who've improved their learning with our system.
+                Join thousands of students who&apos;ve improved their learning with our system.
               </p>
               <SignInButton className="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200" />
             </div>
