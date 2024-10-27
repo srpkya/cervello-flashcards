@@ -9,6 +9,12 @@ export interface Deck {
   updatedAt: Date;
 }
 
+export interface StudyData {
+  date: string;
+  count: number;
+  studyTime: number;
+}
+
 export type Config = {
   schema: string
   out: string
@@ -19,7 +25,6 @@ export type Config = {
     authToken: string | undefined
   }
 }
-
 
 export interface Flashcard {
   id: string;
@@ -40,7 +45,6 @@ export interface ReviewData {
   easeFactor: number;
   interval: number;
 }
-
 
 export interface ExtendedUser {
   id: string
@@ -63,3 +67,9 @@ export interface ApiResponse<T = any> {
   message?: string;
 }
 
+export interface StudySessionStats {
+  totalCardsToday: number;
+  studyTimeToday: number;
+  streak: number;
+  lastThirtyDays: StudyData[];
+}

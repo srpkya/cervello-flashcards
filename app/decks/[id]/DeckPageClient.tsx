@@ -1,14 +1,12 @@
-"use client"
+"use client";
 
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Deck, Flashcard } from '@/lib/types'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -18,36 +16,53 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Edit2, Trash2, PlayCircle, Book, Clock, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+// Create a date formatter with fixed configuration
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  timeZone: 'UTC'  // Use UTC to ensure server/client consistency
+});
+
+const formatReviewDate = (date: Date | string | null): string => {
+  if (!date) return 'Not reviewed yet';
+
+  // Convert string dates to Date objects and ensure UTC
+  const utcDate = typeof date === 'string' ? new Date(date) : date;
+  return `Last reviewed ${dateFormatter.format(utcDate)}`;
+};
+
 const flashcardSchema = z.object({
   front: z.string().min(1, "Front side is required"),
   back: z.string().min(1, "Back side is required")
-})
+});
 
-type FlashcardFormData = z.infer<typeof flashcardSchema>
+type FlashcardFormData = z.infer<typeof flashcardSchema>;
 
-export default function DeckPageClient({
-  initialDeck,
-  initialFlashcards
-}: {
-  initialDeck: Deck,
-  initialFlashcards: Flashcard[]
-}) {
-  const [deck] = useState(initialDeck)
-  const [flashcards, setFlashcards] = useState(initialFlashcards)
-  const [isCreating, setIsCreating] = useState(false)
-  const [editingCard, setEditingCard] = useState<Flashcard | null>(null)
-  const { toast } = useToast()
-  const router = useRouter()
+interface DeckPageClientProps {
+  initialDeck: Deck;
+  initialFlashcards: Flashcard[];
+}
 
-  const form = useForm({
+export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckPageClientProps) {
+  const [deck, setDeck] = useState<Deck>(initialDeck);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
+  const [isCreating, setIsCreating] = useState(false);
+  const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const form = useForm<FlashcardFormData>({
     resolver: zodResolver(flashcardSchema),
     defaultValues: {
       front: "",
       back: ""
     }
-  })
+  });
 
   useEffect(() => {
+    if (!deck?.id) return;
+
     const fetchFlashcards = async () => {
       try {
         const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
@@ -65,9 +80,18 @@ export default function DeckPageClient({
     };
 
     fetchFlashcards();
-  }, [deck.id, toast]);
+  }, [deck?.id, toast]);
 
   const onSubmit = async (data: FlashcardFormData) => {
+    if (!deck?.id) {
+      toast({
+        title: "Error",
+        description: "Deck not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       if (editingCard) {
         const response = await fetch(`/api/flashcards/${editingCard.id}`, {
@@ -137,29 +161,44 @@ export default function DeckPageClient({
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm("Are you sure you want to delete this flashcard?")) {
-      try {
-        const response = await fetch(`/api/flashcards/${id}`, {
-          method: 'DELETE'
-        });
+    if (!confirm("Are you sure you want to delete this flashcard?")) return;
 
-        if (!response.ok) throw new Error('Failed to delete flashcard');
+    try {
+      const response = await fetch(`/api/flashcards/${id}`, {
+        method: 'DELETE'
+      });
 
-        setFlashcards(prevCards => prevCards.filter(card => card.id !== id));
-        toast({
-          title: "Success",
-          description: "Flashcard deleted successfully",
-        });
-      } catch (error) {
-        console.error("Failed to delete flashcard:", error);
-        toast({
-          title: "Error",
-          description: "Failed to delete flashcard. Please try again.",
-          variant: "destructive",
-        });
-      }
+      if (!response.ok) throw new Error('Failed to delete flashcard');
+
+      setFlashcards(prevCards => prevCards.filter(card => card.id !== id));
+      toast({
+        title: "Success",
+        description: "Flashcard deleted successfully",
+      });
+    } catch (error) {
+      console.error("Failed to delete flashcard:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete flashcard. Please try again.",
+        variant: "destructive",
+      });
     }
+  };
+
+  if (!deck) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold mb-4">Deck not found</h1>
+          <Button onClick={() => router.push('/decks')}>Return to Decks</Button>
+        </div>
+      </div>
+    );
   }
+
+  const dueCards = flashcards.filter(card =>
+    !card.nextReview || new Date(card.nextReview) <= new Date()
+  );
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -190,7 +229,7 @@ export default function DeckPageClient({
               </div>
             </CardHeader>
             <CardContent className="py-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="flex items-center space-x-3">
                   <div className="p-3 bg-neutral-100 dark:bg-white/5 rounded-lg">
                     <Book className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
@@ -206,11 +245,7 @@ export default function DeckPageClient({
                   </div>
                   <div>
                     <p className="text-sm text-neutral-600 dark:text-neutral-400">Due Today</p>
-                    <p className="text-2xl font-light dark:text-white">
-                      {flashcards.filter(card =>
-                        !card.nextReview || new Date(card.nextReview) <= new Date()
-                      ).length}
-                    </p>
+                    <p className="text-2xl font-light dark:text-white">{dueCards.length}</p>
                   </div>
                 </div>
               </div>
@@ -321,10 +356,7 @@ export default function DeckPageClient({
                   <CardFooter className="border-t border-neutral-100 dark:border-white/5 pt-4">
                     <div className="flex justify-between items-center w-full">
                       <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {card.lastReviewed
-                          ? `Last reviewed ${new Date(card.lastReviewed).toLocaleDateString()}`
-                          : 'Not reviewed yet'
-                        }
+                        {formatReviewDate(card.lastReviewed)}
                       </div>
                       <div className="flex space-x-2">
                         <Button
@@ -355,7 +387,34 @@ export default function DeckPageClient({
             ))}
           </AnimatePresence>
         </div>
+
+        {flashcards.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-12"
+          >
+            <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full mx-auto flex items-center justify-center mb-6">
+              <Book className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
+            </div>
+            <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
+              No flashcards yet
+            </h3>
+            <p className="text-neutral-600 dark:text-neutral-400 mb-6">
+              Create your first flashcard to get started
+            </p>
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Create Flashcard
+            </Button>
+          </motion.div>
+        )}
       </div>
     </div>
-  )
+  );
 }
+
+export type { FlashcardFormData };

@@ -113,3 +113,7 @@
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
+
+.grid-cols-52 {
+  grid-template-columns: repeat(52, minmax(0, 1fr));
+}

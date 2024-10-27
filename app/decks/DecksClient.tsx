@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,27 +15,34 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Deck, ExtendedSession } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/hooks/use-toast';
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional()
 });
 
+type FormData = z.infer<typeof formSchema>;
+
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
     month: 'numeric',
-    day: 'numeric'
+    day: 'numeric',
+    timeZone: 'UTC'
   }).format(new Date(date));
 };
 
 export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) {
-  const { data: session } = useSession() as { data: ExtendedSession | null };
+  const { data: session } = useSession();
   const [decks, setDecks] = useState<Deck[]>(initialDecks);
   const [isCreating, setIsCreating] = useState(false);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
+  const router = useRouter();
+  const { toast } = useToast();
 
-  const form = useForm({
+  const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       title: "",
@@ -43,11 +50,16 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
     }
   });
 
-  const onSubmit = async (data: z.infer<typeof formSchema>) => {
+  const onSubmit = async (data: FormData) => {
     if (!session?.user?.id) {
-      console.error("User not authenticated");
+      toast({
+        title: "Error",
+        description: "You must be logged in to create a deck",
+        variant: "destructive"
+      });
       return;
     }
+
     try {
       if (editingDeck) {
         const response = await fetch(`/api/decks/${editingDeck.id}`, {
@@ -58,30 +70,84 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
             description: data.description || ''
           })
         });
+
+        if (!response.ok) {
+          throw new Error('Failed to update deck');
+        }
+
         const updatedDeck = await response.json();
         setDecks(prevDecks => prevDecks.map(deck => 
           deck.id === editingDeck.id ? updatedDeck : deck
         ));
+
+        toast({
+          title: "Success",
+          description: "Deck updated successfully",
+        });
       } else {
         const response = await fetch('/api/decks', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            userId: session.user.id,
             title: data.title,
-            description: data.description || '',
-            userId: session.user.id
+            description: data.description || ''
           })
         });
+
+        if (!response.ok) {
+          throw new Error('Failed to create deck');
+        }
+
         const newDeck = await response.json();
         if (newDeck && newDeck.id) {
           setDecks(prevDecks => [...prevDecks, newDeck]);
+          toast({
+            title: "Success",
+            description: "Deck created successfully",
+          });
         }
       }
+
       form.reset();
       setIsCreating(false);
       setEditingDeck(null);
     } catch (error) {
       console.error("Failed to save deck:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDelete = async (deckId: string) => {
+    if (!confirm('Are you sure you want to delete this deck?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/decks/${deckId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete deck');
+      }
+
+      setDecks(prevDecks => prevDecks.filter(deck => deck.id !== deckId));
+      toast({
+        title: "Success",
+        description: "Deck deleted successfully",
+      });
+    } catch (error) {
+      console.error("Failed to delete deck:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete deck. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -167,8 +233,8 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                         Edit
                       </Button>
                       <Button 
+                        onClick={() => router.push(`/decks/${deck.id}`)}
                         className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-                        onClick={() => window.location.href = `/decks/${deck.id}`}
                       >
                         View Cards
                         <ArrowRight className="ml-2 h-4 w-4" />
