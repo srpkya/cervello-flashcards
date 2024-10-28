@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { Brain, Clock, Activity, Calendar } from "lucide-react";
 import { StudySessionStats } from '@/lib/types';
-import { Heatmap } from './Heatmap';
 import { formatStudyTime, formatTimeString } from 'lib/utils'
 import { toast } from '@/hooks/use-toast';
 import StudyStatsChart from './StudyStatsChart';

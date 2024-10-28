@@ -94,6 +94,46 @@ export async function getDeck(id: string) {
   }
 }
 
+export async function updateDeck(id: string, title: string, description: string) {
+  const db = await createDbClient();
+  try {
+    await db.update(deck)
+      .set({
+        title,
+        description,
+        updatedAt: Date.now()
+      })
+      .where(eq(deck.id, id));
+
+    const updated = await db.select()
+      .from(deck)
+      .where(eq(deck.id, id))
+      .get();
+
+    if (!updated) {
+      throw new Error('Failed to update deck');
+    }
+
+    return {
+      ...updated,
+      description: updated.description || '',
+      createdAt: new Date(Number(updated.createdAt)),
+      updatedAt: new Date(Number(updated.updatedAt))
+    };
+  } catch (error) {
+    throw error;
+  }
+}
+
+export async function deleteDeck(id: string) {
+  const db = await createDbClient();
+  try {
+    await db.delete(deck).where(eq(deck.id, id));
+  } catch (error) {
+    throw error;
+  }
+}
+
 export async function createDeck(userId: string, title: string, description: string) {
   const db = await createDbClient();
   const now = Date.now();

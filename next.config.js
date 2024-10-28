@@ -5,13 +5,11 @@ const nextConfig = {
     forceSwcTransforms: true,
   },
   webpack: (config, { isServer }) => {
-    // Handle modules
     config.resolve.fallback = {
       ...config.resolve.fallback,
       punycode: false
     };
 
-    // Externals configuration
     config.externals = [
       ...(config.externals || []),
       { punycode: 'punycode' },
@@ -23,14 +21,12 @@ const nextConfig = {
       },
     ];
 
-    // Suppress warnings
     config.ignoreWarnings = [
       { module: /node_modules\/punycode/ }
     ];
 
     return config;
   },
-  // Additional security headers
   async headers() {
     return [
       {

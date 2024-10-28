@@ -73,3 +73,23 @@ export interface StudySessionStats {
   streak: number;
   lastThirtyDays: StudyData[];
 }
+
+
+export interface TranslationResponse {
+  source: string;
+  target: string;
+  sourceExample: string;
+  targetExample: string;
+}
+
+export interface Language {
+  code: string;
+  name: string;
+}
+
+export interface TranslationResult {
+  source: string;
+  target: string;
+  sourceExample: string;
+  targetExample: string;
+}

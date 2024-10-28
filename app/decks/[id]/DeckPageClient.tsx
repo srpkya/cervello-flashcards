@@ -1,5 +1,4 @@
-"use client";
-
+'use client'
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Deck, Flashcard } from '@/lib/types'
@@ -13,21 +12,19 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { useToast } from "@/hooks/use-toast"
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Edit2, Trash2, PlayCircle, Book, Clock, ChevronRight } from 'lucide-react'
+import { Plus, Edit2, Trash2, PlayCircle, Book, Clock, ChevronRight, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog'
 
-// Create a date formatter with fixed configuration
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   year: 'numeric',
   month: '2-digit',
   day: '2-digit',
-  timeZone: 'UTC'  // Use UTC to ensure server/client consistency
+  timeZone: 'UTC'
 });
 
 const formatReviewDate = (date: Date | string | null): string => {
   if (!date) return 'Not reviewed yet';
-
-  // Convert string dates to Date objects and ensure UTC
   const utcDate = typeof date === 'string' ? new Date(date) : date;
   return `Last reviewed ${dateFormatter.format(utcDate)}`;
 };
@@ -49,6 +46,7 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
   const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
   const [isCreating, setIsCreating] = useState(false);
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+  const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
 
@@ -60,27 +58,26 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
     }
   });
 
+  const fetchFlashcards = async () => {
+    try {
+      const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
+      if (!response.ok) throw new Error('Failed to fetch flashcards');
+      const fetchedFlashcards = await response.json();
+      setFlashcards(fetchedFlashcards);
+    } catch (error) {
+      console.error("Failed to fetch flashcards:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load flashcards. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     if (!deck?.id) return;
-
-    const fetchFlashcards = async () => {
-      try {
-        const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
-        if (!response.ok) throw new Error('Failed to fetch flashcards');
-        const fetchedFlashcards = await response.json();
-        setFlashcards(fetchedFlashcards);
-      } catch (error) {
-        console.error("Failed to fetch flashcards:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load flashcards. Please refresh the page.",
-          variant: "destructive",
-        });
-      }
-    };
-
     fetchFlashcards();
-  }, [deck?.id, toast]);
+  }, [deck?.id]);
 
   const onSubmit = async (data: FlashcardFormData) => {
     if (!deck?.id) {
@@ -251,70 +248,79 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
               </div>
             </CardContent>
             <CardFooter className="border-t border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-white/[0.02]">
-              <Dialog open={isCreating} onOpenChange={setIsCreating}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className=" border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
-                  >
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Card
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="dark:glass-card bg-[#F5F2EA] border-neutral-200 dark:border-white/10 sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle className="text-xl font-light dark:text-white">
-                      {editingCard ? "Edit Card" : "Add New Card"}
-                    </DialogTitle>
-                  </DialogHeader>
-                  <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                      <FormField
-                        control={form.control}
-                        name="front"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="dark:text-neutral-200">Front</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Enter the front side content"
-                                className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="back"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="dark:text-neutral-200">Back</FormLabel>
-                            <FormControl>
-                              <Textarea
-                                placeholder="Enter the back side content"
-                                className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <div className="flex justify-end">
+              <div className="flex gap-2">
+                <Dialog open={isCreating} onOpenChange={setIsCreating}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Basic Card
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="dark:glass-card bg-[#F5F2EA] border-neutral-200 dark:border-white/10 sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl font-light dark:text-white">
+                        {editingCard ? "Edit Card" : "Add New Card"}
+                      </DialogTitle>
+                    </DialogHeader>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        <FormField
+                          control={form.control}
+                          name="front"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="dark:text-neutral-200">Front</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Enter the front side content"
+                                  className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="back"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel className="dark:text-neutral-200">Back</FormLabel>
+                              <FormControl>
+                                <Textarea
+                                  placeholder="Enter the back side content"
+                                  className="resize-none bg-white dark:bg-white/5 dark:text-white dark:border-white/10"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                         <Button
                           type="submit"
-                          className="dark:bg-white dark:text-black dark:hover:bg-neutral-200 bg-neutral-900 text-white hover:bg-neutral-800"
+                          className="w-full dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                         >
                           {editingCard ? "Save Changes" : "Add Card"}
                         </Button>
-                      </div>
-                    </form>
-                  </Form>
-                </DialogContent>
-              </Dialog>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+
+                <Button
+                  variant="outline"
+                  onClick={() => setIsTranslationDialogOpen(true)}
+                  className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                >
+                  <Globe className="mr-2 h-4 w-4" />
+                  Add Translation Card
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </motion.div>
@@ -413,6 +419,15 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
           </motion.div>
         )}
       </div>
+
+      <TranslationFlashcardDialog
+        open={isTranslationDialogOpen}
+        onOpenChange={setIsTranslationDialogOpen}
+        deckId={deck.id}
+        onFlashcardCreated={() => {
+          fetchFlashcards();
+        }}
+      />
     </div>
   );
 }
