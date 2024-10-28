@@ -5,13 +5,18 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatTime(seconds: number): string {
-  if (!seconds || seconds === 0) return '0m';
-  
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
+interface FormattedTime {
+  hours: number;
+  minutes: number;
+}
 
-  if (hours === 0) return `${minutes}m`;
-  if (minutes === 0) return `${hours}h`;
-  return `${hours}h ${minutes}m`;
+export function formatStudyTime(minutes: number): FormattedTime {
+  return {
+    hours: Math.floor(minutes / 60),
+    minutes: Math.floor(minutes % 60)
+  };
+}
+
+export function formatTimeString(time: FormattedTime): string {
+  return `${time.hours}h ${time.minutes}m`;
 }

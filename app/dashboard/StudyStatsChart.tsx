@@ -7,16 +7,12 @@ import {
 } from 'recharts';
 import { StudyData } from '@/lib/types';
 import { motion } from 'framer-motion';
+import { formatStudyTime, formatTimeString } from '@/lib/utils';
 
 interface StudyStatsChartProps {
   data: StudyData[];
   streak?: number;
 }
-interface HeatmapWeekData extends StudyData {
-  isEmpty?: boolean;
-}
-
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 const StatCard = ({ 
   icon: Icon, 
@@ -49,92 +45,81 @@ const StatCard = ({
   </motion.div>
 );
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.[0]) return null;
+
+  const data = payload[0].payload;
+  const timeFormatted = formatTimeString(formatStudyTime(data.studyTime));
+  const formattedDate = new Date(data.date).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric'
+  });
+
+  return (
+    <div className="dark:glass-card border border-white/10 p-4 shadow-xl rounded-lg">
+      <div className="flex flex-col gap-2">
+        <p className="text-sm font-medium dark:text-white">{formattedDate}</p>
+        <div className="space-y-1">
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-sm text-neutral-400">Cards Studied</span>
+            <span className="text-sm font-medium text-blue-400">{data.count}</span>
+          </div>
+          <div className="flex justify-between items-center gap-4">
+            <span className="text-sm text-neutral-400">Study Time</span>
+            <span className="text-sm font-medium text-emerald-400">
+              {timeFormatted}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartProps) {
   const processedData = useMemo(() => {
     const today = new Date();
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
-    
-    const dates = Array.from({ length: 14 }, (_, i) => {
-      const date = new Date(fourteenDaysAgo);
-      date.setDate(fourteenDaysAgo.getDate() + i);
-      return date;
-    });
 
     const dataMap = new Map(data.map(item => [item.date, item]));
-
-    return dates.map((date) => {
-      const dateStr = date.toISOString().split('T')[0];
+    
+    const dates = [];
+    for (let d = new Date(fourteenDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
       const dayData = dataMap.get(dateStr) || { count: 0, studyTime: 0 };
       
-      return {
+      dates.push({
         date: dateStr,
-        displayDate: WEEKDAYS[date.getDay()], 
-        count: dayData.count || 0,
-        studyTime: dayData.studyTime, 
-        isToday: dateStr === today.toISOString().split('T')[0],
-      };
-    });
+        displayDate: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        count: dayData.count,
+        studyTime: dayData.studyTime,
+        isToday: dateStr === today.toISOString().split('T')[0]
+      });
+    }
+    
+    return dates;
   }, [data]);
 
   const stats = useMemo(() => {
-    const totalCards = processedData.reduce((sum, day) => sum + day.count, 0);
-    const bestDay = [...processedData].sort((a, b) => b.count - a.count)[0];
-    const averageCards = processedData.length > 0 ? Math.round(totalCards / processedData.length) : 0;
+    const activeDays = data.filter(day => day.count > 0);
+    const totalCards = activeDays.reduce((sum, day) => sum + day.count, 0);
+    const bestDay = [...data].sort((a, b) => b.count - a.count)[0];
+    const averageCards = activeDays.length > 0 ? Math.round(totalCards / activeDays.length) : 0;
 
     return {
       totalCards,
       bestDay: {
-        date: new Date(bestDay.date).toLocaleDateString('en-US', {
+        date: bestDay ? new Date(bestDay.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric'
-        }),
-        count: bestDay.count,
+        }) : 'N/A',
+        count: bestDay?.count || 0,
       },
       averageCards,
+      activeDays: activeDays.length
     };
-  }, [processedData]);
-
-  const formatTime = (minutes: number): string => {
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = Math.floor(minutes % 60);
-    
-    if (hours === 0 && remainingMinutes === 0) return '0m';
-    if (hours === 0) return `${remainingMinutes}m`;
-    if (remainingMinutes === 0) return `${hours}h`;
-    return `${hours}h ${remainingMinutes}m`;
-  };
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (!active || !payload?.[0]) return null;
-  
-    const data = payload[0].payload;
-    const studyTimeFormatted = formatTime(data.studyTime / 60); // Convert seconds to minutes
-    const date = new Date(data.date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric'
-    });
-
-    return (
-      <div className="dark:glass-card border border-white/10 p-4 shadow-xl rounded-lg">
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium dark:text-white">{date}</p>
-          <div className="space-y-1">
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-neutral-400">Cards Studied</span>
-              <span className="text-sm font-medium text-blue-400">{data.count}</span>
-            </div>
-            <div className="flex justify-between items-center gap-4">
-              <span className="text-sm text-neutral-400">Study Time</span>
-              <span className="text-sm font-medium text-emerald-400">
-                {studyTimeFormatted}
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  }, [data]);
 
   return (
     <Card className="col-span-full dark:glass-card dark:border-white/5">
@@ -163,7 +148,7 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
               icon={Activity}
               label="Daily Average"
               value={stats.averageCards.toString()}
-              subtext="cards per day"
+              subtext={`over ${stats.activeDays} active day${stats.activeDays === 1 ? '' : 's'}`}
               color="text-emerald-500"
             />
           </div>
@@ -203,13 +188,7 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
                 }}
                 width={40}
               />
-              <Tooltip
-                content={<CustomTooltip />}
-                cursor={{
-                  stroke: 'rgba(255,255,255,0.1)',
-                  strokeWidth: 1
-                }}
-              />
+              <Tooltip content={<CustomTooltip />} />
               <Area
                 type="monotone"
                 dataKey="count"

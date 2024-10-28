@@ -31,6 +31,42 @@ export default function ReviewSession({
   const currentCard = flashcards[currentIndex];
   const progress = (reviewedCount / flashcards.length) * 100;
 
+  const completeSession = async () => {
+    try {
+      const sessionEnd = new Date();
+      console.log('Completing review session:', {
+        startTime: sessionStartTime,
+        endTime: sessionEnd,
+        cardsStudied: reviewedCount + 1,
+        userId
+      });
+
+      const response = await fetch('/api/study-sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          cardsStudied: reviewedCount + 1,
+          startTime: sessionStartTime,
+          endTime: sessionEnd
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save study session');
+      }
+
+      setIsCompleted(true);
+    } catch (error) {
+      console.error('Error saving study session:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save your study progress. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleCardUpdate = async (quality: number) => {
     try {
       const now = new Date();
@@ -67,19 +103,7 @@ export default function ReviewSession({
         setCurrentIndex(prev => prev + 1);
         setIsFlipped(false);
       } else {
-        const sessionEnd = new Date();
-        await fetch('/api/study-sessions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId,
-            cardsStudied: reviewedCount + 1,
-            startTime: sessionStartTime.toISOString(),
-            endTime: sessionEnd.toISOString(),
-          }),
-        });
-
-        setIsCompleted(true);
+        await completeSession();
       }
     } catch (error) {
       console.error('Error updating flashcard:', error);
@@ -110,7 +134,7 @@ export default function ReviewSession({
   return (
     <div className="max-w-4xl mx-auto p-4">
       <div className="mb-8">
-      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4">
           <Button 
             variant="ghost" 
             onClick={onComplete}

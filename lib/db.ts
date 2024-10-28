@@ -105,7 +105,7 @@ export async function createDeck(userId: string, title: string, description: str
     createdAt: now,
     updatedAt: now,
   };
-  
+
   try {
     await db.insert(deck).values(newDeck);
     const created = await db.select().from(deck).where(eq(deck.id, newDeck.id)).get();
@@ -144,17 +144,39 @@ export async function createStudySession(userId: string, cardsStudied: number, s
   while (retries < RETRY_ATTEMPTS) {
     try {
       const db = await createDbClient();
+      
+      const startDate = startTime instanceof Date ? startTime : new Date(startTime);
+      const endDate = endTime instanceof Date ? endTime : new Date(endTime);
+      
       const session = {
         id: crypto.randomUUID(),
         userId,
         cardsStudied,
-        startTime,
-        endTime,
-        createdAt: new Date(),
+        startTime: startDate,
+        endTime: endDate,
+        createdAt: new Date()
       };
+
+      console.log('Creating new study session:', {
+        ...session,
+        startTime: session.startTime.toISOString(),
+        endTime: session.endTime.toISOString(),
+        createdAt: session.createdAt.toISOString()
+      });
+      
       await db.insert(studySession).values(session);
-      return;
+      
+      const createdSession = await db
+        .select()
+        .from(studySession)
+        .where(eq(studySession.id, session.id))
+        .get();
+        
+      console.log('Verified created session:', createdSession);
+      
+      return session;
     } catch (error) {
+      console.error('Error creating study session:', error);
       retries++;
       if (retries === RETRY_ATTEMPTS) throw error;
       await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
@@ -164,16 +186,15 @@ export async function createStudySession(userId: string, cardsStudied: number, s
 
 async function calculateStreak(db: any, userId: string): Promise<number> {
   const now = new Date();
-  now.setHours(0, 0, 0, 0);
-
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  
   let currentStreak = 0;
-  let currentDate = new Date(now);
+  let currentDate = new Date(today);
   let continuousStreak = true;
 
   while (continuousStreak) {
-    const dayStart = new Date(currentDate);
-    const dayEnd = new Date(currentDate);
-    dayEnd.setHours(23, 59, 59, 999);
+    const dayStart = currentDate.getTime();
+    const dayEnd = dayStart + (24 * 60 * 60 * 1000);
 
     const hadActivity = await db
       .select({ count: sql<number>`count(*)` })
@@ -181,8 +202,8 @@ async function calculateStreak(db: any, userId: string): Promise<number> {
       .where(
         and(
           eq(studySession.userId, userId),
-          sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= datetime(${dayStart.getTime() / 1000}, 'unixepoch')`,
-          sql`datetime(${studySession.startTime} / 1000, 'unixepoch') <= datetime(${dayEnd.getTime() / 1000}, 'unixepoch')`
+          sql`${studySession.startTime} >= ${dayStart}`,
+          sql`${studySession.startTime} < ${dayEnd}`
         )
       )
       .get();
@@ -191,18 +212,18 @@ async function calculateStreak(db: any, userId: string): Promise<number> {
       currentStreak++;
       currentDate.setDate(currentDate.getDate() - 1);
     } else {
-      if (currentStreak === 0 && currentDate.getTime() === now.getTime()) {
+      if (currentStreak === 0 && currentDate.getTime() === today.getTime()) {
         const todayActivity = await db
           .select({ count: sql<number>`count(*)` })
           .from(studySession)
           .where(
             and(
               eq(studySession.userId, userId),
-              sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= datetime(${now.getTime() / 1000}, 'unixepoch')`
+              sql`${studySession.startTime} >= ${today.getTime()}`
             )
           )
           .get();
-        
+
         if (Number(todayActivity?.count) > 0) {
           currentStreak = 1;
         }
@@ -217,97 +238,117 @@ async function calculateStreak(db: any, userId: string): Promise<number> {
 export async function getStudyStats(userId: string): Promise<StudySessionStats> {
   const db = await createDbClient();
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const now = new Date();
+  const utcMidnight = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate()
+  ));
   
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  thirtyDaysAgo.setHours(0, 0, 0, 0);
-
-  const todayStart = sql`datetime(${today.getTime() / 1000}, 'unixepoch')`;
-  const thirtyDaysAgoStart = sql`datetime(${thirtyDaysAgo.getTime() / 1000}, 'unixepoch')`;
+  const todayStart = utcMidnight.getTime();
+  const todayEnd = todayStart + (24 * 60 * 60 * 1000);
 
   const todayStats = await db
     .select({
       cardsStudied: sql<number>`COALESCE(sum(${studySession.cardsStudied}), 0)`,
-      totalTime: sql<number>`COALESCE(sum(
-        CAST(
-          (JULIANDAY(datetime(${studySession.endTime} / 1000, 'unixepoch')) - 
-           JULIANDAY(datetime(${studySession.startTime} / 1000, 'unixepoch'))) * 86400 
-        AS INTEGER)
-      ), 0)`,
+      totalTime: sql<number>`COALESCE(
+        ROUND(
+          SUM(
+            CAST(
+              (${studySession.endTime} - ${studySession.startTime}) 
+              AS FLOAT
+            ) / 600.0
+          ),
+          2
+        ),
+        0
+      )`,
     })
     .from(studySession)
     .where(
       and(
         eq(studySession.userId, userId),
-        sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= datetime('now', 'start of day')`
+        sql`${studySession.startTime} >= ${todayStart}`,
+        sql`${studySession.startTime} < ${todayEnd}`
       )
     )
     .get();
 
-  const dailyStats = await db
+  const thirtyDaysAgo = new Date(utcMidnight);
+  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
+
+  const sessions = await db
     .select({
-      date: sql<string>`date(${studySession.startTime} / 1000, 'unixepoch')`,
-      count: sql<number>`COALESCE(sum(${studySession.cardsStudied}), 0)`,
-      studyTime: sql<number>`COALESCE(sum(
-        ROUND(
-          (JULIANDAY(datetime(${studySession.endTime} / 1000, 'unixepoch')) - 
-           JULIANDAY(datetime(${studySession.startTime} / 1000, 'unixepoch'))) * 86400
-        )
-      ), 0)`,
+      startTime: studySession.startTime,
+      endTime: studySession.endTime,
+      cardsStudied: studySession.cardsStudied,
     })
     .from(studySession)
     .where(
       and(
         eq(studySession.userId, userId),
-        sql`datetime(${studySession.startTime} / 1000, 'unixepoch') >= ${thirtyDaysAgoStart}`
+        sql`${studySession.startTime} >= ${thirtyDaysAgo.getTime()}`
       )
-    )
-    .groupBy(sql`date(${studySession.startTime} / 1000, 'unixepoch')`)
-    .execute();
+    );
 
-  const streak = await calculateStreak(db, userId);
-
-  const filledDailyStats: StudyData[] = [];
-  let currentDate = new Date(thirtyDaysAgo);
-  const endDate = new Date(today);
-
-  endDate.setDate(endDate.getDate() + 1);
-
-  while (currentDate < endDate) {
-    const dateStr = currentDate.toISOString().split('T')[0];
+  const sessionsByDate = new Map<string, { count: number; studyTime: number }>();
+  
+  sessions.forEach(session => {
+    const utcDate = new Date(Number(session.startTime));
+    const dateKey = utcDate.toISOString().split('T')[0];
     
-    if (dateStr === today.toISOString().split('T')[0]) {
-      filledDailyStats.push({
-        date: dateStr,
-        count: Number(todayStats?.cardsStudied || 0),
-        studyTime: Number(todayStats?.totalTime || 0)
-      });
-    } else {
-      const existingStat = dailyStats.find(
-        stat => new Date(stat.date).toISOString().split('T')[0] === dateStr
-      );
+    const existing = sessionsByDate.get(dateKey) || { count: 0, studyTime: 0 };
+    sessionsByDate.set(dateKey, {
+      count: existing.count + Number(session.cardsStudied),
+      studyTime: existing.studyTime + 
+        (Number(session.endTime) - Number(session.startTime)) / 600
+    });
+  });
 
-      filledDailyStats.push({
-        date: dateStr,
-        count: existingStat ? Number(existingStat.count) : 0,
-        studyTime: existingStat ? Number(existingStat.studyTime) : 0
-      });
-    }
-
-    currentDate.setDate(currentDate.getDate() + 1);
+  const dailyStats: StudyData[] = [];
+  for (let i = 0; i < 30; i++) {
+    const date = new Date(thirtyDaysAgo);
+    date.setUTCDate(thirtyDaysAgo.getUTCDate() + i);
+    const dateStr = date.toISOString().split('T')[0];
+    
+    const dayStats = sessionsByDate.get(dateStr) || { count: 0, studyTime: 0 };
+    dailyStats.push({
+      date: dateStr,
+      count: dayStats.count,
+      studyTime: Math.round(dayStats.studyTime * 100) / 100
+    });
   }
 
-  
+  let streak = 0;
+  let currentDate = new Date(utcMidnight);
+  let continuousStreak = true;
+
+  while (continuousStreak) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const dayStats = sessionsByDate.get(dateStr);
+    
+    if (dayStats && dayStats.count > 0) {
+      streak++;
+      currentDate.setUTCDate(currentDate.getUTCDate() - 1);
+    } else {
+      if (streak === 0 && dateStr === utcMidnight.toISOString().split('T')[0]) {
+        const todayStats = sessionsByDate.get(dateStr);
+        if (todayStats && todayStats.count > 0) {
+          streak = 1;
+        }
+      }
+      continuousStreak = false;
+    }
+  }
 
   return {
     totalCardsToday: Number(todayStats?.cardsStudied || 0),
-    studyTimeToday: Number(todayStats?.totalTime || 0), 
+    studyTimeToday: Number(todayStats?.totalTime || 0),
     streak,
-    lastThirtyDays: filledDailyStats,
+    lastThirtyDays: dailyStats
   };
 }
+
 
 export async function updateFlashcard(id: string, front: string, back: string, reviewData?: {
   lastReviewed: string | Date;
@@ -316,7 +357,7 @@ export async function updateFlashcard(id: string, front: string, back: string, r
   interval: number;
 }) {
   const db = await createDbClient();
-  
+
   try {
     const toMillis = (date: string | Date) => {
       if (typeof date === 'string') {
@@ -377,7 +418,7 @@ export async function deleteFlashcard(id: string) {
 export async function createFlashcard(deckId: string, front: string, back: string) {
   const db = await createDbClient();
   const now = Date.now();
-  
+
   const newFlashcard = {
     id: crypto.randomUUID(),
     deckId,

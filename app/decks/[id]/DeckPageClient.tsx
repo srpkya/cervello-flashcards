@@ -255,7 +255,7 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
                 <DialogTrigger asChild>
                   <Button
                     variant="outline"
-                    className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                    className=" border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
                   >
                     <Plus className="mr-2 h-4 w-4" />
                     Add Card
