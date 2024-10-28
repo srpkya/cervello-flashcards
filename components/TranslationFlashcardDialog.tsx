@@ -71,6 +71,7 @@ export default function TranslationFlashcardDialog({
           text: values.text,
           sourceLang: values.sourceLang,
           targetLang: values.targetLang,
+          deckId: deckId
         }),
       });
 
@@ -79,25 +80,9 @@ export default function TranslationFlashcardDialog({
         throw new Error(error.error || 'Translation failed');
       }
 
-      const translation = await translationResponse.json();
-
-      const flashcardResponse = await fetch('/api/flashcards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId,
-          front: `${translation.sourceExample} [${languageMapping[values.sourceLang]}]`,
-          back: `${translation.targetExample} [${languageMapping[values.targetLang]}]`
-        }),
-      });
-
-      if (!flashcardResponse.ok) {
-        throw new Error('Failed to create flashcard');
-      }
-
       toast({
         title: 'Success',
-        description: 'Flashcard created successfully',
+        description: 'Flashcard was created successfully',
       });
 
       form.reset();

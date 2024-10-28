@@ -1,10 +1,11 @@
-
 import { NextResponse } from 'next/server';
 import { RateLimiter } from '@/lib/rate-limiter';
 import { ErrorHandler, TranslationError } from '@/lib/error-handler';
 import { headers } from 'next/headers';
 import { getTranslation, supportedLanguages } from '@/lib/huggingface';
 import { Language } from '@/lib/types';
+import { createFlashcard } from '@/lib/db';
+
 export async function POST(request: Request) {
   try {
     const forwardedFor = headers().get('x-forwarded-for');
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { text, sourceLang, targetLang } = body;
+    const { text, sourceLang, targetLang, deckId } = body;
 
     const supportedLanguageCodes = new Set(
       supportedLanguages.map((lang: Language) => lang.code)
@@ -38,6 +39,15 @@ export async function POST(request: Request) {
     }
 
     const translation = await getTranslation(text, sourceLang, targetLang);
+
+    if (deckId) {
+      const newFlashcard = await createFlashcard(
+        deckId, 
+        translation.source, 
+        translation.target   
+      );
+      console.log('Created flashcard:', newFlashcard);
+    }
     
     const remaining = RateLimiter.getRemainingRequests(ip);
     const resetTime = RateLimiter.getResetTime(ip);
