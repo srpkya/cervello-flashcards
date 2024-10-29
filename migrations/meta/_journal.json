@@ -15,6 +15,13 @@
       "when": 1730204801029,
       "tag": "0001_outstanding_typhoid_mary",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1730216968479,
+      "tag": "0002_cold_quentin_quire",
+      "breakpoints": true
     }
   ]
 }

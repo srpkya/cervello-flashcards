@@ -97,6 +97,35 @@ export const reviewLog = sqliteTable('review_log', {
   responseTime: integer('response_time').notNull(),
 });
 
+export const sharedDeck = sqliteTable('shared_deck', {
+  id: text('id').notNull().primaryKey(),
+  originalDeckId: text('original_deck_id').notNull().references(() => deck.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  description: text('description'),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  downloads: integer('downloads').notNull().default(0),
+  isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(true),
+});
+
+export const deckRating = sqliteTable('deck_rating', {
+  id: text('id').notNull().primaryKey(),
+  sharedDeckId: text('shared_deck_id').notNull().references(() => sharedDeck.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  rating: real('rating').notNull(), // Allows half stars (0.5, 1.0, 1.5, etc.)
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+export const deckComment = sqliteTable('deck_comment', {
+  id: text('id').notNull().primaryKey(),
+  sharedDeckId: text('shared_deck_id').notNull().references(() => sharedDeck.id, { onDelete: 'cascade' }),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
 // Types
 export type User = InferSelectModel<typeof user>;
 export type NewUser = InferInsertModel<typeof user>;
@@ -117,3 +146,7 @@ export type ReviewLog = InferSelectModel<typeof reviewLog>;
 export type NewReviewLog = InferInsertModel<typeof reviewLog>;
 
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
+
+export type SharedDeck = InferSelectModel<typeof sharedDeck>;
+export type DeckRating = InferSelectModel<typeof deckRating>;
+export type DeckComment = InferSelectModel<typeof deckComment>;

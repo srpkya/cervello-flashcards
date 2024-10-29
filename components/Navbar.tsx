@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { signIn, signOut, useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { ModeToggle } from '@/components/mode-toggle'
-import { Menu, X, BookOpen, LayoutDashboard, RefreshCw } from 'lucide-react'
+import { Menu, X, BookOpen, LayoutDashboard, RefreshCw, ShoppingBag } from 'lucide-react'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
@@ -63,6 +63,7 @@ const Navbar = () => {
               <div className="flex items-center mr-4 bg-white dark:glass-card rounded-lg shadow-sm">
                 <NavLink href="/dashboard" icon={LayoutDashboard}>Dashboard</NavLink>
                 <NavLink href="/decks" icon={BookOpen}>Collections</NavLink>
+                <NavLink href="/marketplace" icon={ShoppingBag}>Marketplace</NavLink>
                 <NavLink href="/review" icon={RefreshCw}>Review</NavLink>
               </div>
             )}

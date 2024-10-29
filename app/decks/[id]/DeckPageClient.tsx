@@ -1,20 +1,31 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useRouter } from 'next/navigation';
 import { Deck, Flashcard } from '@/lib/types';
-import { 
-  Card, CardContent, CardDescription, 
-  CardFooter, CardHeader, CardTitle 
+import {
+  Card, CardContent, CardDescription,
+  CardFooter, CardHeader, CardTitle
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
-  Dialog, DialogContent, DialogHeader, 
-  DialogTitle, DialogTrigger 
+import {
+  Dialog, DialogContent, DialogHeader,
+  DialogTitle, DialogTrigger
 } from "@/components/ui/dialog";
-import { 
-  Form, FormField, FormItem, 
-  FormLabel, FormControl, FormMessage 
+import {
+  Form, FormField, FormItem,
+  FormLabel, FormControl, FormMessage
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
@@ -22,24 +33,24 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Plus, Edit2, Trash2, PlayCircle, 
-  Book, Clock, ChevronRight, Globe 
+import {
+  Plus, Edit2, Trash2, PlayCircle,
+  Book, Clock, ChevronRight, Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog';
-import { 
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader,
-  AlertDialogTitle, AlertDialogTrigger 
-} from '@/components/ui/alert-dialog';
 import { formatTimestamp } from '@/lib/utils';
+import { useSession } from "next-auth/react";
 
 const flashcardSchema = z.object({
   front: z.string().min(1, "Front side is required"),
   back: z.string().min(1, "Back side is required")
 });
+
+interface DeckPageClientProps {
+  initialDeck: Deck;
+  initialFlashcards: Flashcard[];
+}
 
 type FlashcardFormData = z.infer<typeof flashcardSchema>;
 
@@ -48,16 +59,18 @@ interface DeckPageClientProps {
   initialFlashcards: Flashcard[];
 }
 
-export default function DeckPageClient({ 
-  initialDeck, 
-  initialFlashcards 
+export default function DeckPageClient({
+  initialDeck,
+  initialFlashcards
 }: DeckPageClientProps) {
+  const { data: session } = useSession();
   const [deck, setDeck] = useState<Deck>(initialDeck);
   const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
   const [isCreating, setIsCreating] = useState(false);
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const { toast } = useToast();
+  const [isShared, setIsShared] = useState(false);
   const router = useRouter();
 
   const form = useForm<FlashcardFormData>({
@@ -88,6 +101,65 @@ export default function DeckPageClient({
     if (!deck?.id) return;
     fetchFlashcards();
   }, [deck?.id]);
+
+  useEffect(() => {
+    const checkSharedStatus = async () => {
+      try {
+        const response = await fetch(`/api/marketplace/check/${deck.id}`);
+        if (!response.ok) throw new Error('Failed to check shared status');
+        const data = await response.json();
+        setIsShared(data.isShared);
+      } catch (error) {
+        console.error('Error checking shared status:', error);
+      }
+    };
+
+    if (deck?.id) {
+      checkSharedStatus();
+    }
+  }, [deck?.id]);
+  
+  const handleShareDeck = async () => {
+    if (!session?.user?.id) {
+      toast({
+        title: "Error",
+        description: "You must be signed in to share a deck",
+        variant: "destructive"
+      });
+      return;
+    }
+  
+    try {
+      const response = await fetch('/api/marketplace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: deck.id,
+          userId: session.user.id
+        }),
+      });
+  
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to share deck');
+      }
+  
+      const data = await response.json();
+      setIsShared(true);
+      toast({
+        title: "Success",
+        description: "Deck shared to marketplace successfully",
+      });
+  
+    } catch (error) {
+      console.error('Error sharing deck:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to share deck",
+        variant: "destructive",
+      });
+    }
+  };
 
   const onSubmit = async (data: FlashcardFormData) => {
     if (!deck?.id) {
@@ -321,6 +393,15 @@ export default function DeckPageClient({
                   <Globe className="mr-2 h-4 w-4" />
                   Add Translation Card
                 </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleShareDeck}
+                  disabled={isShared}
+                  className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                >
+                  <Globe className="mr-2 h-4 w-4" />
+                  {isShared ? 'Shared on Marketplace' : 'Share to Marketplace'}
+                </Button>
               </div>
             </CardFooter>
           </Card>
@@ -370,10 +451,11 @@ export default function DeckPageClient({
                           variant="ghost"
                           size="sm"
                           className="hover:bg-neutral-100 dark:hover:bg-white/5 dark:text-neutral-200"
-                          onClick={() => {setEditingCard(card);
-                            form.reset({ 
-                              front: card.front, 
-                              back: card.back 
+                          onClick={() => {
+                            setEditingCard(card);
+                            form.reset({
+                              front: card.front,
+                              back: card.back
                             });
                             setIsCreating(true);
                           }}

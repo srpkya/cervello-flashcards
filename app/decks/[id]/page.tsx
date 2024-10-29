@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
+import { Deck } from '@/lib/types';
 
 export default async function DeckPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -13,13 +14,13 @@ export default async function DeckPage({ params }: { params: { id: string } }) {
     redirect('/auth/signin');
   }
 
-  const deck = await getDeck(params.id);
-  
-  if (!deck) {
+  const deckData = await getDeck(params.id);
+
+  if (!deckData) {
     notFound();
   }
 
-  if (deck.userId !== session.user.id) {
+  if (deckData.userId !== session.user.id) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -34,6 +35,12 @@ export default async function DeckPage({ params }: { params: { id: string } }) {
       </div>
     );
   }
+
+  const deck: Deck = {
+    ...deckData,
+    createdAt: new Date(deckData.createdAt),
+    updatedAt: new Date(deckData.updatedAt)
+  };
 
   const flashcards = await getFlashcards(params.id);
 
