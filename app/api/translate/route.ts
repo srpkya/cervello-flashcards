@@ -1,16 +1,32 @@
+// app/api/translate/route.ts
 import { NextResponse } from 'next/server';
 import { RateLimiter } from '@/lib/rate-limiter';
-import { ErrorHandler, TranslationError } from '@/lib/error-handler';
 import { headers } from 'next/headers';
-import { getTranslation, supportedLanguages } from '@/lib/huggingface';
-import { Language } from '@/lib/types';
-import { createFlashcard } from '@/lib/db';
+import { getTranslation, isLanguagePairSupported } from '@/lib/huggingface';
+import { z } from 'zod';
+
+// Validation schema
+const translationSchema = z.object({
+  text: z.string().min(1).max(500),
+  sourceLang: z.string().length(2),
+  targetLang: z.string().length(2)
+});
 
 export async function POST(request: Request) {
   try {
+    const apiToken = process.env.HUGGINGFACE_API_TOKEN;
+    
+    if (!apiToken) {
+      console.error('Missing Hugging Face API token');
+      return NextResponse.json(
+        { error: 'Service configuration error' },
+        { status: 500 }
+      );
+    }
+
     const forwardedFor = headers().get('x-forwarded-for');
     const ip = forwardedFor?.split(',')[0] || 'unknown';
-
+    
     if (RateLimiter.isRateLimited(ip)) {
       const resetTime = RateLimiter.getResetTime(ip);
       return NextResponse.json(
@@ -20,56 +36,39 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { text, sourceLang, targetLang, deckId } = body;
-
-    const supportedLanguageCodes = new Set(
-      supportedLanguages.map((lang: Language) => lang.code)
-    );
-
-    if (!text?.trim()) {
-      throw new TranslationError('Text is required', 400);
-    }
-
-    if (!sourceLang || !targetLang) {
-      throw new TranslationError('Source and target languages are required', 400);
-    }
-
-    if (!supportedLanguageCodes.has(sourceLang) || !supportedLanguageCodes.has(targetLang)) {
-      throw new TranslationError('Unsupported language pair', 400);
-    }
-
-    const translation = await getTranslation(text, sourceLang, targetLang);
-
-    if (deckId) {
-      const newFlashcard = await createFlashcard(
-        deckId, 
-        translation.source, 
-        translation.target   
-      );
-      console.log('Created flashcard:', newFlashcard);
-    }
     
-    const remaining = RateLimiter.getRemainingRequests(ip);
-    const resetTime = RateLimiter.getResetTime(ip);
+    const validatedData = translationSchema.parse(body);
+    const { text, sourceLang, targetLang } = validatedData;
 
-    return NextResponse.json(translation, {
+    if (!isLanguagePairSupported(sourceLang, targetLang)) {
+      return NextResponse.json(
+        { error: 'Unsupported language pair' },
+        { status: 400 }
+      );
+    }
+
+    const result = await getTranslation(text, sourceLang, targetLang, apiToken);
+    
+    return NextResponse.json(result, {
       headers: {
-        'X-RateLimit-Remaining': remaining.toString(),
-        'X-RateLimit-Reset': resetTime?.toString() || '',
+        'X-RateLimit-Remaining': RateLimiter.getRemainingRequests(ip).toString(),
+        'X-RateLimit-Reset': RateLimiter.getResetTime(ip)?.toString() || '',
       }
     });
 
   } catch (error) {
-    const { error: errorMessage, statusCode, context } = await ErrorHandler.handle(error);
-    
-    await ErrorHandler.logError(error, {
-      path: '/api/translate',
-      ...context
-    });
+    console.error('Translation API error:', error);
+
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Invalid request data', details: error.errors },
+        { status: 400 }
+      );
+    }
 
     return NextResponse.json(
-      { error: errorMessage },
-      { status: statusCode }
+      { error: 'Translation service error. Please try again.' },
+      { status: 500 }
     );
   }
 }

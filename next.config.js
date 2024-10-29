@@ -1,30 +1,25 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  env: {
+    HUGGINGFACE_API_TOKEN: process.env.HUGGINGFACE_API_TOKEN
+  },
   reactStrictMode: true,
   experimental: {
     forceSwcTransforms: true,
   },
-  webpack: (config, { isServer }) => {
-    config.resolve.fallback = {
-      ...config.resolve.fallback,
-      punycode: false
-    };
-
-    config.externals = [
-      ...(config.externals || []),
-      { punycode: 'punycode' },
-      function({ context, request }, callback) {
-        if (/^@libsql\//.test(request)) {
-          return callback(null, 'commonjs ' + request);
-        }
-        callback();
+  webpack: (config) => {
+    config.resolve.alias = {
+        ...config.resolve.alias,
+        "sharp$": false,
+        "onnxruntime-node$": false,
+    }
+    config.module.rules.push({
+      test: /\.worker\.(js|ts)$/,
+      loader: 'worker-loader',
+      options: {
+        filename: 'static/[hash].worker.js',
       },
-    ];
-
-    config.ignoreWarnings = [
-      { module: /node_modules\/punycode/ }
-    ];
-
+    });
     return config;
   },
   async headers() {
@@ -55,7 +50,8 @@ const nextConfig = {
         ]
       }
     ];
-  }
+    
+  },
 };
 
 module.exports = nextConfig;

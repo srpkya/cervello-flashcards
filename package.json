@@ -16,6 +16,7 @@
     "@auth/core": "0.37.2",
     "@auth/drizzle-adapter": "1.7.2",
     "@hookform/resolvers": "3.3.2",
+    "@huggingface/transformers": "^3.0.1",
     "@libsql/client": "^0.3.6",
     "@radix-ui/react-accordion": "1.1.2",
     "@radix-ui/react-alert-dialog": "1.0.5",

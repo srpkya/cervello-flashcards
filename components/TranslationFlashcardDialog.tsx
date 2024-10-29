@@ -1,3 +1,4 @@
+// components/TranslationFlashcardDialog.tsx
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
@@ -14,25 +15,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-
-type LanguageCode = 'en' | 'de' | 'fr' | 'es' | 'it' | 'pt' | 'ru';
-
-export const languageMapping: Record<LanguageCode, string> = {
-  'en': 'English',
-  'de': 'German',
-  'fr': 'French',
-  'es': 'Spanish',
-  'it': 'Italian',
-  'pt': 'Portuguese',
-  'ru': 'Russian'
-};
+import { languageMapping } from '@/lib/huggingface';
 
 const formSchema = z.object({
-  text: z.string().min(1, 'Text is required'),
-  sourceLang: z.enum(['en', 'de', 'fr', 'es', 'it', 'pt', 'ru'] as const),
-  targetLang: z.enum(['en', 'de', 'fr', 'es', 'it', 'pt', 'ru'] as const)
+  text: z.string().min(1, "Text is required").max(500, "Text too long"),
+  sourceLang: z.string().min(1, "Source language is required"),
+  targetLang: z.string().min(1, "Target language is required")
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -51,6 +41,7 @@ export default function TranslationFlashcardDialog({
   onFlashcardCreated
 }: TranslationFlashcardDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -64,14 +55,14 @@ export default function TranslationFlashcardDialog({
   const onSubmit = async (values: FormData) => {
     setIsLoading(true);
     try {
+      // First, get the translation
       const translationResponse = await fetch('/api/translate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: values.text,
           sourceLang: values.sourceLang,
-          targetLang: values.targetLang,
-          deckId: deckId
+          targetLang: values.targetLang
         }),
       });
 
@@ -80,9 +71,28 @@ export default function TranslationFlashcardDialog({
         throw new Error(error.error || 'Translation failed');
       }
 
+      const { source, target } = await translationResponse.json();
+
+      // Then, create the flashcard
+      const flashcardResponse = await fetch('/api/flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId,
+          front: source,
+          back: target
+        }),
+      });
+
+      if (!flashcardResponse.ok) {
+        const error = await flashcardResponse.json();
+        console.error('Flashcard creation error:', await flashcardResponse.text());
+        throw new Error(error.error || 'Failed to create flashcard');
+      }
+
       toast({
-        title: 'Success',
-        description: 'Flashcard was created successfully',
+        title: "Success",
+        description: "Translation flashcard created successfully",
       });
 
       form.reset();
@@ -91,7 +101,7 @@ export default function TranslationFlashcardDialog({
     } catch (error) {
       console.error('Error creating translation flashcard:', error);
       toast({
-        title: 'Error',
+        title: "Error",
         description: error instanceof Error ? error.message : 'Failed to create flashcard',
         variant: 'destructive',
       });
@@ -122,6 +132,7 @@ export default function TranslationFlashcardDialog({
                       placeholder="Enter word or phrase to translate"
                       className="dark:bg-white/5 dark:border-white/10 dark:text-white"
                       {...field}
+                      disabled={isLoading}
                     />
                   </FormControl>
                   <FormMessage />
@@ -136,6 +147,7 @@ export default function TranslationFlashcardDialog({
                 <FormItem>
                   <FormLabel className="dark:text-neutral-200">Source Language</FormLabel>
                   <Select
+                    disabled={isLoading}
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >
@@ -164,6 +176,7 @@ export default function TranslationFlashcardDialog({
                 <FormItem>
                   <FormLabel className="dark:text-neutral-200">Target Language</FormLabel>
                   <Select
+                    disabled={isLoading}
                     onValueChange={field.onChange}
                     defaultValue={field.value}
                   >

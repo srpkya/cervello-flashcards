@@ -6,6 +6,27 @@ import { user, account } from "./schema";
 import { AdapterUser } from "next-auth/adapters";
 import { eq } from "drizzle-orm";
 
+interface UserData {
+  name?: string | null;
+  email?: string | null;
+  emailVerified?: Date | null;
+  image?: string | null;
+}
+
+interface AccountData {
+  userId: string;
+  type: string;
+  provider: string;
+  providerAccountId: string;
+  refresh_token?: string | null;
+  access_token?: string | null;
+  expires_at?: number | null;
+  token_type?: string | null;
+  scope?: string | null;
+  id_token?: string | null;
+  session_state?: string | null;
+}
+
 declare module "next-auth" {
   interface Session {
     user: {
@@ -33,7 +54,7 @@ export const authOptions: NextAuthOptions = {
   ],
   adapter: {
     ...DrizzleAdapter(await getDb()),
-    async createUser(data) {
+    async createUser(data: UserData) {
       const db = await getDb();
       try {
         if (data.email) {
@@ -65,7 +86,7 @@ export const authOptions: NextAuthOptions = {
       }
     },
 
-    async linkAccount(data) {
+    async linkAccount(data: AccountData) {
       const db = await getDb();
       try {
         const existingAccount = await db.select()
@@ -77,19 +98,29 @@ export const authOptions: NextAuthOptions = {
           return;
         }
 
-        const newAccount = {
-          ...data,
+        const accountData = {
           id: crypto.randomUUID(),
+          userId: data.userId,
+          type: data.type,
+          provider: data.provider,
+          providerAccountId: data.providerAccountId,
+          refresh_token: data.refresh_token,
+          access_token: data.access_token,
+          expires_at: data.expires_at,
+          token_type: data.token_type,
+          scope: data.scope,
+          id_token: data.id_token,
+          session_state: data.session_state
         };
-        
-        await db.insert(account).values(newAccount);
+
+        await db.insert(account).values(accountData);
       } catch (error) {
         console.error("Error in linkAccount:", error);
         throw error;
       }
     },
 
-    async getUser(id) {
+    async getUser(id: string) {
       const db = await getDb();
       try {
         const result = await db.select().from(user).where(eq(user.id, id)).get();
@@ -100,7 +131,7 @@ export const authOptions: NextAuthOptions = {
       }
     },
 
-    async getUserByEmail(email) {
+    async getUserByEmail(email: string) {
       const db = await getDb();
       try {
         const result = await db.select().from(user).where(eq(user.email, email)).get();
@@ -111,7 +142,7 @@ export const authOptions: NextAuthOptions = {
       }
     },
 
-    async updateUser(data) {
+    async updateUser(data: Partial<AdapterUser> & { id: string }) {
       const db = await getDb();
       try {
         if (!data.id) throw new Error("User ID is required");

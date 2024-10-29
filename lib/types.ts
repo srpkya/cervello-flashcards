@@ -1,4 +1,11 @@
+// lib/types.ts
 import { Session, DefaultSession } from "next-auth"
+import { pipeline, PipelineType } from '@huggingface/transformers';
+import type { 
+  Flashcard as DrizzleFlashcard,
+  StudySession as DrizzleStudySession,
+  CardState
+} from './schema';
 
 export interface Deck {
   id: string;
@@ -26,18 +33,6 @@ export type Config = {
   }
 }
 
-export interface Flashcard {
-  id: string;
-  deckId: string;
-  front: string;
-  back: string;
-  createdAt: Date;
-  updatedAt: Date;
-  lastReviewed: Date | null;
-  nextReview: Date | null;
-  easeFactor: number;
-  interval: number;
-}
 
 export interface ReviewData {
   lastReviewed: Date | string;
@@ -74,12 +69,12 @@ export interface StudySessionStats {
   lastThirtyDays: StudyData[];
 }
 
-
 export interface TranslationResponse {
   source: string;
   target: string;
   sourceExample: string;
   targetExample: string;
+  audio?: string;
 }
 
 export interface Language {
@@ -93,3 +88,34 @@ export interface TranslationResult {
   sourceExample: string;
   targetExample: string;
 }
+
+export interface TTSOptions {
+  speaker_embeddings?: null | string;
+  speed_ratio?: number;
+  pitch_ratio?: number;
+  energy_ratio?: number;
+}
+
+export interface TranslationResponse {
+  translation_text: string;
+}
+
+export interface TranslationWorkerMessage {
+  task: PipelineType;
+  modelId: string;
+  inputs: string;
+  options?: Record<string, any>;
+}
+
+
+export interface TranslationWorkerResponse {
+  type: 'progress' | 'result' | 'error';
+  progress?: number;
+  result?: TranslationResponse;
+  error?: string;
+}
+
+export type Flashcard = DrizzleFlashcard;
+export type StudySession = DrizzleStudySession;
+export type { CardState };
+

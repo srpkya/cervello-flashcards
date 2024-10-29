@@ -1,28 +1,16 @@
 import { drizzle } from 'drizzle-orm/libsql';
-import { deck, flashcard } from './schema';
-import * as schema from './schema';
+import { and, eq, gte, lt } from 'drizzle-orm';
 import { createClient } from '@libsql/client';
-import { studySession } from './schema';
-import { and, eq, sql } from 'drizzle-orm';
-import { StudyData } from './types';
+import * as schema from './schema';
+import { 
+  user, deck, flashcard, studySession, reviewLog,
+  type User, type Deck, type Flashcard, 
+  type StudySession, type ReviewLog,
+  type CardState
+} from './schema';
 
 const RETRY_ATTEMPTS = 3;
 const RETRY_DELAY = 1000;
-
-export interface StudySessionStats {
-  totalCardsToday: number;
-  studyTimeToday: number;
-  streak: number;
-  lastThirtyDays: Array<{
-    date: string;
-    count: number;
-  }>;
-}
-
-interface DailyStats {
-  date: string;
-  count: number;
-}
 
 async function createDbClientWithRetry(attempt = 1) {
   try {
@@ -58,44 +46,51 @@ export async function createDbClient() {
 }
 
 export async function getDecks(userId: string) {
-  let retries = 0;
-  while (retries < RETRY_ATTEMPTS) {
-    try {
-      const db = await createDbClient();
-      const results = await db.select().from(deck).where(eq(deck.userId, userId));
-      return results.map(deck => ({
-        ...deck,
-        description: deck.description || '',
-        createdAt: new Date(Number(deck.createdAt)),
-        updatedAt: new Date(Number(deck.updatedAt))
-      }));
-    } catch (error) {
-      retries++;
-      if (retries === RETRY_ATTEMPTS) throw error;
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
-    }
+  try {
+    const db = await createDbClient();
+    const results = await db.select().from(deck).where(eq(deck.userId, userId));
+    return results;
+  } catch (error) {
+    console.error('Error fetching decks:', error);
+    throw error;
   }
-  throw new Error('Failed to fetch decks after multiple attempts');
 }
 
 export async function getDeck(id: string) {
-  const db = await createDbClient();
   try {
-    const result = await db.select().from(deck).where(eq(deck.id, id)).get();
-    if (!result) return undefined;
-    return {
-      ...result,
-      description: result.description || '',
-      createdAt: new Date(Number(result.createdAt)),
-      updatedAt: new Date(Number(result.updatedAt))
-    };
+    const db = await createDbClient();
+    return await db.select().from(deck).where(eq(deck.id, id)).get();
   } catch (error) {
+    console.error('Error fetching deck:', error);
+    throw error;
+  }
+}
+
+export async function createDeck(userId: string, title: string, description: string) {
+  const db = await createDbClient();
+  const now = Date.now();
+  
+  try {
+    const newDeck = {
+      id: crypto.randomUUID(),
+      userId,
+      title,
+      description,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await db.insert(deck).values(newDeck);
+    return newDeck;
+  } catch (error) {
+    console.error('Error creating deck:', error);
     throw error;
   }
 }
 
 export async function updateDeck(id: string, title: string, description: string) {
   const db = await createDbClient();
+  
   try {
     await db.update(deck)
       .set({
@@ -105,395 +100,321 @@ export async function updateDeck(id: string, title: string, description: string)
       })
       .where(eq(deck.id, id));
 
-    const updated = await db.select()
-      .from(deck)
-      .where(eq(deck.id, id))
-      .get();
-
-    if (!updated) {
-      throw new Error('Failed to update deck');
-    }
-
-    return {
-      ...updated,
-      description: updated.description || '',
-      createdAt: new Date(Number(updated.createdAt)),
-      updatedAt: new Date(Number(updated.updatedAt))
-    };
+    return await getDeck(id);
   } catch (error) {
+    console.error('Error updating deck:', error);
     throw error;
   }
 }
 
 export async function deleteDeck(id: string) {
-  const db = await createDbClient();
   try {
+    const db = await createDbClient();
     await db.delete(deck).where(eq(deck.id, id));
   } catch (error) {
+    console.error('Error deleting deck:', error);
     throw error;
   }
 }
 
-export async function createDeck(userId: string, title: string, description: string) {
+export async function createFlashcard(
+  deckId: string,
+  front: string,
+  back: string,
+  audio?: string
+) {
   const db = await createDbClient();
   const now = Date.now();
-  const newDeck = {
-    id: crypto.randomUUID(),
-    userId,
-    title,
-    description,
-    createdAt: now,
-    updatedAt: now,
-  };
 
   try {
-    await db.insert(deck).values(newDeck);
-    const created = await db.select().from(deck).where(eq(deck.id, newDeck.id)).get();
-    if (!created) throw new Error('Failed to create deck');
-    return {
-      ...created,
-      description: created.description || '',
-      createdAt: new Date(Number(created.createdAt)),
-      updatedAt: new Date(Number(created.updatedAt))
-    };
-  } catch (error) {
-    throw error;
-  }
-}
-
-export async function getFlashcards(deckId: string) {
-  const db = await createDbClient();
-  try {
-    const results = await db.select().from(flashcard).where(eq(flashcard.deckId, deckId));
-    return results.map(card => ({
-      ...card,
-      createdAt: new Date(card.createdAt),
-      updatedAt: new Date(card.updatedAt),
-      lastReviewed: card.lastReviewed ? new Date(card.lastReviewed) : null,
-      nextReview: card.nextReview ? new Date(card.nextReview) : null,
-      easeFactor: Number(card.easeFactor),
-      interval: Number(card.interval)
-    }));
-  } catch (error) {
-    throw error;
-  }
-}
-
-export async function createStudySession(userId: string, cardsStudied: number, startTime: Date, endTime: Date) {
-  let retries = 0;
-  while (retries < RETRY_ATTEMPTS) {
-    try {
-      const db = await createDbClient();
-      
-      const startDate = startTime instanceof Date ? startTime : new Date(startTime);
-      const endDate = endTime instanceof Date ? endTime : new Date(endTime);
-      
-      const session = {
-        id: crypto.randomUUID(),
-        userId,
-        cardsStudied,
-        startTime: startDate,
-        endTime: endDate,
-        createdAt: new Date()
-      };
-
-      console.log('Creating new study session:', {
-        ...session,
-        startTime: session.startTime.toISOString(),
-        endTime: session.endTime.toISOString(),
-        createdAt: session.createdAt.toISOString()
-      });
-      
-      await db.insert(studySession).values(session);
-      
-      const createdSession = await db
-        .select()
-        .from(studySession)
-        .where(eq(studySession.id, session.id))
-        .get();
-        
-      console.log('Verified created session:', createdSession);
-      
-      return session;
-    } catch (error) {
-      console.error('Error creating study session:', error);
-      retries++;
-      if (retries === RETRY_ATTEMPTS) throw error;
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * retries));
-    }
-  }
-}
-
-async function calculateStreak(db: any, userId: string): Promise<number> {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  
-  let currentStreak = 0;
-  let currentDate = new Date(today);
-  let continuousStreak = true;
-
-  while (continuousStreak) {
-    const dayStart = currentDate.getTime();
-    const dayEnd = dayStart + (24 * 60 * 60 * 1000);
-
-    const hadActivity = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(studySession)
-      .where(
-        and(
-          eq(studySession.userId, userId),
-          sql`${studySession.startTime} >= ${dayStart}`,
-          sql`${studySession.startTime} < ${dayEnd}`
-        )
-      )
-      .get();
-
-    if (Number(hadActivity?.count) > 0) {
-      currentStreak++;
-      currentDate.setDate(currentDate.getDate() - 1);
-    } else {
-      if (currentStreak === 0 && currentDate.getTime() === today.getTime()) {
-        const todayActivity = await db
-          .select({ count: sql<number>`count(*)` })
-          .from(studySession)
-          .where(
-            and(
-              eq(studySession.userId, userId),
-              sql`${studySession.startTime} >= ${today.getTime()}`
-            )
-          )
-          .get();
-
-        if (Number(todayActivity?.count) > 0) {
-          currentStreak = 1;
-        }
-      }
-      continuousStreak = false;
-    }
-  }
-
-  return currentStreak;
-}
-
-export async function getStudyStats(userId: string): Promise<StudySessionStats> {
-  const db = await createDbClient();
-  
-  const now = new Date();
-  const utcMidnight = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate()
-  ));
-  
-  const todayStart = utcMidnight.getTime();
-  const todayEnd = todayStart + (24 * 60 * 60 * 1000);
-
-  const todayStats = await db
-    .select({
-      cardsStudied: sql<number>`COALESCE(sum(${studySession.cardsStudied}), 0)`,
-      totalTime: sql<number>`COALESCE(
-        ROUND(
-          SUM(
-            CAST(
-              (${studySession.endTime} - ${studySession.startTime}) 
-              AS FLOAT
-            ) / 600.0
-          ),
-          2
-        ),
-        0
-      )`,
-    })
-    .from(studySession)
-    .where(
-      and(
-        eq(studySession.userId, userId),
-        sql`${studySession.startTime} >= ${todayStart}`,
-        sql`${studySession.startTime} < ${todayEnd}`
-      )
-    )
-    .get();
-
-  const thirtyDaysAgo = new Date(utcMidnight);
-  thirtyDaysAgo.setUTCDate(thirtyDaysAgo.getUTCDate() - 29);
-
-  const sessions = await db
-    .select({
-      startTime: studySession.startTime,
-      endTime: studySession.endTime,
-      cardsStudied: studySession.cardsStudied,
-    })
-    .from(studySession)
-    .where(
-      and(
-        eq(studySession.userId, userId),
-        sql`${studySession.startTime} >= ${thirtyDaysAgo.getTime()}`
-      )
-    );
-
-  const sessionsByDate = new Map<string, { count: number; studyTime: number }>();
-  
-  sessions.forEach(session => {
-    const utcDate = new Date(Number(session.startTime));
-    const dateKey = utcDate.toISOString().split('T')[0];
-    
-    const existing = sessionsByDate.get(dateKey) || { count: 0, studyTime: 0 };
-    sessionsByDate.set(dateKey, {
-      count: existing.count + Number(session.cardsStudied),
-      studyTime: existing.studyTime + 
-        (Number(session.endTime) - Number(session.startTime)) / 600
-    });
-  });
-
-  const dailyStats: StudyData[] = [];
-  for (let i = 0; i < 30; i++) {
-    const date = new Date(thirtyDaysAgo);
-    date.setUTCDate(thirtyDaysAgo.getUTCDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
-    
-    const dayStats = sessionsByDate.get(dateStr) || { count: 0, studyTime: 0 };
-    dailyStats.push({
-      date: dateStr,
-      count: dayStats.count,
-      studyTime: Math.round(dayStats.studyTime * 100) / 100
-    });
-  }
-
-  let streak = 0;
-  let currentDate = new Date(utcMidnight);
-  let continuousStreak = true;
-
-  while (continuousStreak) {
-    const dateStr = currentDate.toISOString().split('T')[0];
-    const dayStats = sessionsByDate.get(dateStr);
-    
-    if (dayStats && dayStats.count > 0) {
-      streak++;
-      currentDate.setUTCDate(currentDate.getUTCDate() - 1);
-    } else {
-      if (streak === 0 && dateStr === utcMidnight.toISOString().split('T')[0]) {
-        const todayStats = sessionsByDate.get(dateStr);
-        if (todayStats && todayStats.count > 0) {
-          streak = 1;
-        }
-      }
-      continuousStreak = false;
-    }
-  }
-
-  return {
-    totalCardsToday: Number(todayStats?.cardsStudied || 0),
-    studyTimeToday: Number(todayStats?.totalTime || 0),
-    streak,
-    lastThirtyDays: dailyStats
-  };
-}
-
-
-export async function updateFlashcard(id: string, front: string, back: string, reviewData?: {
-  lastReviewed: string | Date;
-  nextReview: string | Date;
-  easeFactor: number;
-  interval: number;
-}) {
-  const db = await createDbClient();
-
-  try {
-    const toMillis = (date: string | Date) => {
-      if (typeof date === 'string') {
-        return new Date(date).valueOf();
-      }
-      return date.valueOf();
-    };
-
-    const updateData = {
+    const newFlashcard = {
+      id: crypto.randomUUID(),
+      deckId,
       front,
       back,
-      updatedAt: Date.now(),
-      ...(reviewData && {
-        lastReviewed: toMillis(reviewData.lastReviewed),
-        nextReview: toMillis(reviewData.nextReview),
-        easeFactor: reviewData.easeFactor,
-        interval: reviewData.interval
-      })
+      audio,
+      createdAt: now,
+      updatedAt: now,
+      lastReviewed: null,
+      nextReview: null,
+      state: 'new' as const,
+      stability: 1,
+      difficulty: 5,
+      elapsedDays: 0,
+      scheduledDays: 0,
+      reps: 0,
+      lapses: 0,
+      interval: 0,
+      easeFactor: 250,
     };
+
+    await db.insert(flashcard).values(newFlashcard);
+    return newFlashcard;
+  } catch (error) {
+    console.error('Error creating flashcard:', error);
+    throw error;
+  }
+}
+
+export async function updateFlashcard(
+  id: string,
+  front: string,
+  back: string,
+  reviewData?: {
+    lastReviewed: number | string | Date;
+    nextReview: number | string | Date;
+    state?: schema.CardState;
+    stability?: number;
+    difficulty?: number;
+    elapsedDays?: number;
+    scheduledDays?: number;
+    reps?: number;
+    lapses?: number;
+    interval?: number;
+    easeFactor?: number;
+  }
+) {
+  const db = await createDbClient();
+
+  try {
+    const updateData: Partial<Flashcard> = {
+      front,
+      back,
+      updatedAt: Date.now()
+    };
+
+    if (reviewData) {
+      updateData.lastReviewed = typeof reviewData.lastReviewed === 'number'
+        ? reviewData.lastReviewed
+        : new Date(reviewData.lastReviewed).getTime();
+
+      updateData.nextReview = typeof reviewData.nextReview === 'number'
+        ? reviewData.nextReview
+        : new Date(reviewData.nextReview).getTime();
+
+      if (reviewData.state) updateData.state = reviewData.state;
+      if (reviewData.stability !== undefined) updateData.stability = reviewData.stability;
+      if (reviewData.difficulty !== undefined) updateData.difficulty = reviewData.difficulty;
+      if (reviewData.elapsedDays !== undefined) updateData.elapsedDays = reviewData.elapsedDays;
+      if (reviewData.scheduledDays !== undefined) updateData.scheduledDays = reviewData.scheduledDays;
+      if (reviewData.reps !== undefined) updateData.reps = reviewData.reps;
+      if (reviewData.lapses !== undefined) updateData.lapses = reviewData.lapses;
+      if (reviewData.interval !== undefined) updateData.interval = reviewData.interval;
+      if (reviewData.easeFactor !== undefined) updateData.easeFactor = reviewData.easeFactor;
+    }
 
     await db.update(flashcard)
       .set(updateData)
       .where(eq(flashcard.id, id));
 
-    const updatedCard = await db
-      .select()
+    return await db.select()
       .from(flashcard)
       .where(eq(flashcard.id, id))
       .get();
-
-    if (!updatedCard) {
-      throw new Error('Flashcard not found after update');
-    }
-
-    return {
-      ...updatedCard,
-      createdAt: new Date(Number(updatedCard.createdAt)),
-      updatedAt: new Date(Number(updatedCard.updatedAt)),
-      lastReviewed: updatedCard.lastReviewed ? new Date(Number(updatedCard.lastReviewed)) : null,
-      nextReview: updatedCard.nextReview ? new Date(Number(updatedCard.nextReview)) : null,
-      easeFactor: Number(updatedCard.easeFactor),
-      interval: Number(updatedCard.interval)
-    };
   } catch (error) {
+    console.error('Error updating flashcard:', error);
     throw error;
   }
 }
 
 export async function deleteFlashcard(id: string) {
-  const db = await createDbClient();
   try {
+    const db = await createDbClient();
     await db.delete(flashcard).where(eq(flashcard.id, id));
   } catch (error) {
+    console.error('Error deleting flashcard:', error);
     throw error;
   }
 }
 
-export async function createFlashcard(deckId: string, front: string, back: string) {
-  const db = await createDbClient();
-  const now = Date.now();
+export async function getFlashcards(deckId: string) {
+  try {
+    const db = await createDbClient();
+    return await db.select()
+      .from(flashcard)
+      .where(eq(flashcard.deckId, deckId));
+  } catch (error) {
+    console.error('Error fetching flashcards:', error);
+    throw error;
+  }
+}
 
-  const newFlashcard = {
-    id: crypto.randomUUID(),
-    deckId,
-    front,
-    back,
-    createdAt: now,
-    updatedAt: now,
-    lastReviewed: null,
-    nextReview: null,
-    easeFactor: 250,
-    interval: 0
-  };
+export async function createStudySession(
+  userId: string,
+  cardsStudied: number,
+  startTime: Date,
+  endTime: Date,
+  correctCount: number = 0,
+  incorrectCount: number = 0,
+  averageTime: number = 0
+) {
+  const db = await createDbClient();
 
   try {
-    await db.insert(flashcard).values(newFlashcard);
+    const sessionData = {
+      id: crypto.randomUUID(),
+      userId,
+      cardsStudied,
+      startTime: startTime.getTime(),
+      endTime: endTime.getTime(),
+      createdAt: Date.now(),
+      correctCount,
+      incorrectCount,
+      averageTime
+    };
 
-    const created = await db.select()
-      .from(flashcard)
-      .where(eq(flashcard.id, newFlashcard.id))
-      .get();
+    await db.insert(studySession).values(sessionData);
+    return sessionData;
+  } catch (error) {
+    console.error('Error creating study session:', error);
+    throw error;
+  }
+}
 
-    if (!created) {
-      throw new Error('Failed to create flashcard');
+export async function createReviewLog(
+  userId: string,
+  flashcardId: string,
+  rating: number,
+  reviewData: {
+    stability: number;
+    difficulty: number;
+    elapsedDays: number;
+    scheduledDays: number;
+    responseTime: number;
+  }
+) {
+  const db = await createDbClient();
+
+  try {
+    const logEntry = {
+      id: crypto.randomUUID(),
+      userId,
+      flashcardId,
+      rating,
+      reviewedAt: Date.now(),
+      ...reviewData
+    };
+
+    await db.insert(reviewLog).values(logEntry);
+    return logEntry;
+  } catch (error) {
+    console.error('Error creating review log:', error);
+    throw error;
+  }
+}
+
+export async function getStudyStats(userId: string) {
+  const db = await createDbClient();
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayEnd = todayStart + (24 * 60 * 60 * 1000);
+
+  try {
+    // Get today's study sessions
+    const todaysSessions = await db
+      .select()
+      .from(schema.studySession)
+      .where(
+        and(
+          eq(schema.studySession.userId, userId),
+          gte(schema.studySession.startTime, todayStart),
+          lt(schema.studySession.startTime, todayEnd)
+        )
+      );
+
+    // Calculate today's totals
+    const todayStats = todaysSessions.reduce(
+      (acc, session) => ({
+        cardsStudied: acc.cardsStudied + session.cardsStudied,
+        studyTime: acc.studyTime + (session.endTime - session.startTime),
+        correctCount: acc.correctCount + (session.correctCount || 0),
+        incorrectCount: acc.incorrectCount + (session.incorrectCount || 0),
+      }),
+      {
+        cardsStudied: 0,
+        studyTime: 0,
+        correctCount: 0,
+        incorrectCount: 0,
+      }
+    );
+
+    // Get last 30 days of data
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const lastThirtyDaysSessions = await db
+      .select()
+      .from(schema.studySession)
+      .where(
+        and(
+          eq(schema.studySession.userId, userId),
+          gte(schema.studySession.startTime, thirtyDaysAgo.getTime())
+        )
+      );
+
+    // Process the sessions into daily data
+    const dailyData = new Map();
+    
+    // Initialize all dates in the last 30 days with zero values
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      dailyData.set(dateStr, { count: 0, studyTime: 0 });
+    }
+
+    // Fill in actual study data
+    lastThirtyDaysSessions.forEach(session => {
+      const date = new Date(session.startTime).toISOString().split('T')[0];
+      const existing = dailyData.get(date) || { count: 0, studyTime: 0 };
+      dailyData.set(date, {
+        count: existing.count + session.cardsStudied,
+        studyTime: existing.studyTime + (session.endTime - session.startTime)
+      });
+    });
+
+    // Calculate streak
+    let streak = 0;
+    let currentDate = new Date(now);
+    currentDate.setHours(0, 0, 0, 0);
+    
+    while (streak < 30) { // Limit to 30 days to prevent infinite loop
+      const dateStr = currentDate.toISOString().split('T')[0];
+      const dayData = dailyData.get(dateStr);
+      
+      if (!dayData || dayData.count === 0) {
+        // Stop counting streak if we find a day with no study activity
+        // Unless it's today and we haven't studied yet
+        if (streak > 0 || dateStr !== now.toISOString().split('T')[0]) {
+          break;
+        }
+      }
+      
+      if (dayData?.count > 0) {
+        streak++;
+      }
+      
+      // Move to previous day
+      currentDate.setDate(currentDate.getDate() - 1);
     }
 
     return {
-      ...created,
-      createdAt: new Date(Number(created.createdAt)),
-      updatedAt: new Date(Number(created.updatedAt)),
-      lastReviewed: created.lastReviewed ? new Date(Number(created.lastReviewed)) : null,
-      nextReview: created.nextReview ? new Date(Number(created.nextReview)) : null,
-      easeFactor: Number(created.easeFactor),
-      interval: Number(created.interval)
+      totalCardsToday: todayStats.cardsStudied,
+      studyTimeToday: Math.floor(todayStats.studyTime / (1000 * 60)), // Convert to minutes
+      correctCount: todayStats.correctCount,
+      incorrectCount: todayStats.incorrectCount,
+      accuracy: todayStats.cardsStudied > 0 
+        ? Math.round((todayStats.correctCount / todayStats.cardsStudied) * 100)
+        : 0,
+      streak,
+      lastThirtyDays: Array.from(dailyData, ([date, data]) => ({
+        date,
+        count: data.count,
+        studyTime: Math.floor(data.studyTime / (1000 * 60))
+      })).sort((a, b) => a.date.localeCompare(b.date))
     };
   } catch (error) {
+    console.error('Error fetching study stats:', error);
     throw error;
   }
 }

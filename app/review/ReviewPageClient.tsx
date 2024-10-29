@@ -90,16 +90,16 @@ export default function ReviewPageClient() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
         <h2 className="text-2xl font-light text-neutral-800 dark:text-white">
-          No decks available
+          No collections available
         </h2>
         <p className="text-neutral-600 dark:text-neutral-400">
-          Create a deck first to start reviewing
+          Create a collection first to start reviewing
         </p>
         <Button 
           onClick={() => router.push('/decks')}
           className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
         >
-          Create Deck
+          Create A Collection
         </Button>
       </div>
     );

@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, Target, Flame } from 'lucide-react';
+import { Activity, Target, Flame, BookOpen } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, Tooltip, 
   ResponsiveContainer, CartesianGrid
@@ -8,6 +8,8 @@ import {
 import { StudyData } from '@/lib/types';
 import { motion } from 'framer-motion';
 import { formatStudyTime, formatTimeString } from '@/lib/utils';
+import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 
 interface StudyStatsChartProps {
   data: StudyData[];
@@ -76,18 +78,53 @@ const CustomTooltip = ({ active, payload }: any) => {
   );
 };
 
+const EmptyState = () => (
+  <Card className="col-span-full dark:glass-card dark:border-white/5">
+    <CardContent className="flex flex-col items-center justify-center py-16">
+      <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+        <BookOpen className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
+      </div>
+      <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
+        No Study Data Available
+      </h3>
+      <p className="text-neutral-600 dark:text-neutral-400 mb-6 text-center max-w-md">
+        Start reviewing flashcards to see your study progress and statistics here.
+      </p>
+      <Button asChild className="dark:bg-white dark:text-black dark:hover:bg-neutral-200">
+        <Link href="/decks">
+          Start Studying
+        </Link>
+      </Button>
+    </CardContent>
+  </Card>
+);
+
 export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartProps) {
+  // Check if there's no study data
+  if (!data || data.length === 0) {
+    return <EmptyState />;
+  }
+
+  // Check if there's any actual study activity in the data
+  const hasStudyActivity = data.some(day => day.count > 0 || day.studyTime > 0);
+  if (!hasStudyActivity) {
+    return <EmptyState />;
+  }
+
   const processedData = useMemo(() => {
     const today = new Date();
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
 
-    const dataMap = new Map(data.map(item => [item.date, item]));
+    // Create a lookup object
+    const dataLookup = Object.fromEntries(
+      data.map(item => [item.date, item])
+    );
     
     const dates = [];
     for (let d = new Date(fourteenDaysAgo); d <= today; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
-      const dayData = dataMap.get(dateStr) || { count: 0, studyTime: 0 };
+      const dayData = dataLookup[dateStr] || { count: 0, studyTime: 0 };
       
       dates.push({
         date: dateStr,

@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { type InferSelectModel, type InferInsertModel } from 'drizzle-orm';
 
 export const user = sqliteTable('user', {
   id: text('id').notNull().primaryKey(),
@@ -25,21 +26,6 @@ export const account = sqliteTable('account', {
   session_state: text('session_state'),
 });
 
-export const flashcard = sqliteTable('flashcard', {
-  id: text('id').notNull().primaryKey(),
-  deckId: text('deck_id')
-    .notNull()
-    .references(() => deck.id, { onDelete: 'cascade' }),
-  front: text('front').notNull(),
-  back: text('back').notNull(),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  lastReviewed: integer('last_reviewed'),
-  nextReview: integer('next_review'),
-  easeFactor: integer('ease_factor').notNull().default(250),
-  interval: integer('interval').notNull().default(0),
-});
-
 export const deck = sqliteTable('deck', {
   id: text('id').notNull().primaryKey(),
   userId: text('user_id')
@@ -51,13 +37,83 @@ export const deck = sqliteTable('deck', {
   updatedAt: integer('updated_at').notNull(),
 });
 
+export const flashcard = sqliteTable('flashcard', {
+  id: text('id').notNull().primaryKey(),
+  deckId: text('deck_id')
+    .notNull()
+    .references(() => deck.id, { onDelete: 'cascade' }),
+  front: text('front').notNull(),
+  back: text('back').notNull(),
+  audio: text('audio'),
+  
+  // Core timestamps
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  lastReviewed: integer('last_reviewed'),
+  nextReview: integer('next_review'),
+
+  // FSRS fields
+  state: text('state', { 
+    enum: ['new', 'learning', 'review', 'relearning'] 
+  }).notNull().default('new'),
+  stability: real('stability').notNull().default(1),
+  difficulty: real('difficulty').notNull().default(5),
+  elapsedDays: integer('elapsed_days').notNull().default(0),
+  scheduledDays: integer('scheduled_days').notNull().default(0),
+  reps: integer('reps').notNull().default(0),
+  lapses: integer('lapses').notNull().default(0),
+  interval: integer('interval').notNull().default(0),
+  easeFactor: integer('ease_factor').notNull().default(250),
+});
+
 export const studySession = sqliteTable('study_session', {
   id: text('id').notNull().primaryKey(),
   userId: text('user_id')
     .notNull()
     .references(() => user.id, { onDelete: 'cascade' }),
   cardsStudied: integer('cards_studied').notNull(),
-  startTime: integer('start_time', { mode: 'timestamp_ms' }).notNull(),
-  endTime: integer('end_time', { mode: 'timestamp_ms' }).notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+  startTime: integer('start_time').notNull(),
+  endTime: integer('end_time').notNull(),
+  createdAt: integer('created_at').notNull(),
+  correctCount: integer('correct_count').notNull().default(0),
+  incorrectCount: integer('incorrect_count').notNull().default(0),
+  averageTime: integer('average_time').notNull().default(0),
 });
+
+export const reviewLog = sqliteTable('review_log', {
+  id: text('id').notNull().primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  flashcardId: text('flashcard_id')
+    .notNull()
+    .references(() => flashcard.id, { onDelete: 'cascade' }),
+  rating: integer('rating').notNull(),
+  reviewedAt: integer('reviewed_at').notNull(),
+  stability: real('stability').notNull(),
+  difficulty: real('difficulty').notNull(),
+  elapsedDays: integer('elapsed_days').notNull(),
+  scheduledDays: integer('scheduled_days').notNull(),
+  responseTime: integer('response_time').notNull(),
+});
+
+// Types
+export type User = InferSelectModel<typeof user>;
+export type NewUser = InferInsertModel<typeof user>;
+
+export type Account = InferSelectModel<typeof account>;
+export type NewAccount = InferInsertModel<typeof account>;
+
+export type Deck = InferSelectModel<typeof deck>;
+export type NewDeck = InferInsertModel<typeof deck>;
+
+export type Flashcard = InferSelectModel<typeof flashcard>;
+export type NewFlashcard = InferInsertModel<typeof flashcard>;
+
+export type StudySession = InferSelectModel<typeof studySession>;
+export type NewStudySession = InferInsertModel<typeof studySession>;
+
+export type ReviewLog = InferSelectModel<typeof reviewLog>;
+export type NewReviewLog = InferInsertModel<typeof reviewLog>;
+
+export type CardState = 'new' | 'learning' | 'review' | 'relearning';

@@ -1,33 +1,40 @@
-'use client'
-import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { Deck, Flashcard } from '@/lib/types'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form"
-import { Textarea } from "@/components/ui/textarea"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { useToast } from "@/hooks/use-toast"
-import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Edit2, Trash2, PlayCircle, Book, Clock, ChevronRight, Globe } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog'
+'use client';
 
-const dateFormatter = new Intl.DateTimeFormat('en-US', {
-  year: 'numeric',
-  month: '2-digit',
-  day: '2-digit',
-  timeZone: 'UTC'
-});
-
-const formatReviewDate = (date: Date | string | null): string => {
-  if (!date) return 'Not reviewed yet';
-  const utcDate = typeof date === 'string' ? new Date(date) : date;
-  return `Last reviewed ${dateFormatter.format(utcDate)}`;
-};
+import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Deck, Flashcard } from '@/lib/types';
+import { 
+  Card, CardContent, CardDescription, 
+  CardFooter, CardHeader, CardTitle 
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { 
+  Dialog, DialogContent, DialogHeader, 
+  DialogTitle, DialogTrigger 
+} from "@/components/ui/dialog";
+import { 
+  Form, FormField, FormItem, 
+  FormLabel, FormControl, FormMessage 
+} from "@/components/ui/form";
+import { Textarea } from "@/components/ui/textarea";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { useToast } from "@/hooks/use-toast";
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Plus, Edit2, Trash2, PlayCircle, 
+  Book, Clock, ChevronRight, Globe 
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog';
+import { 
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogTrigger 
+} from '@/components/ui/alert-dialog';
+import { formatTimestamp } from '@/lib/utils';
 
 const flashcardSchema = z.object({
   front: z.string().min(1, "Front side is required"),
@@ -41,7 +48,10 @@ interface DeckPageClientProps {
   initialFlashcards: Flashcard[];
 }
 
-export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckPageClientProps) {
+export default function DeckPageClient({ 
+  initialDeck, 
+  initialFlashcards 
+}: DeckPageClientProps) {
   const [deck, setDeck] = useState<Deck>(initialDeck);
   const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
   const [isCreating, setIsCreating] = useState(false);
@@ -96,13 +106,7 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             front: data.front,
-            back: data.back,
-            reviewData: {
-              lastReviewed: editingCard.lastReviewed,
-              nextReview: editingCard.nextReview,
-              easeFactor: editingCard.easeFactor,
-              interval: editingCard.interval
-            }
+            back: data.back
           })
         });
 
@@ -182,17 +186,6 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
     }
   };
 
-  if (!deck) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4">Deck not found</h1>
-          <Button onClick={() => router.push('/decks')}>Return to Decks</Button>
-        </div>
-      </div>
-    );
-  }
-
   const dueCards = flashcards.filter(card =>
     !card.nextReview || new Date(card.nextReview) <= new Date()
   );
@@ -232,8 +225,12 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
                     <Book className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   </div>
                   <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Total Cards</p>
-                    <p className="text-2xl font-light dark:text-white">{flashcards.length}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Total Cards
+                    </p>
+                    <p className="text-2xl font-light dark:text-white">
+                      {flashcards.length}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -241,14 +238,18 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
                     <Clock className="h-5 w-5 text-neutral-600 dark:text-neutral-400" />
                   </div>
                   <div>
-                    <p className="text-sm text-neutral-600 dark:text-neutral-400">Due Today</p>
-                    <p className="text-2xl font-light dark:text-white">{dueCards.length}</p>
+                    <p className="text-sm text-neutral-600 dark:text-neutral-400">
+                      Due Today
+                    </p>
+                    <p className="text-2xl font-light dark:text-white">
+                      {dueCards.length}
+                    </p>
                   </div>
                 </div>
               </div>
             </CardContent>
             <CardFooter className="border-t border-neutral-100 dark:border-white/5 bg-neutral-50/50 dark:bg-white/[0.02]">
-              <div className="flex gap-2">
+              <div className="flex pt-4 items-center gap-4 w-full">
                 <Dialog open={isCreating} onOpenChange={setIsCreating}>
                   <DialogTrigger asChild>
                     <Button
@@ -362,16 +363,18 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
                   <CardFooter className="border-t border-neutral-100 dark:border-white/5 pt-4">
                     <div className="flex justify-between items-center w-full">
                       <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                        {formatReviewDate(card.lastReviewed)}
+                        {formatTimestamp(card.lastReviewed)}
                       </div>
                       <div className="flex space-x-2">
                         <Button
                           variant="ghost"
                           size="sm"
                           className="hover:bg-neutral-100 dark:hover:bg-white/5 dark:text-neutral-200"
-                          onClick={() => {
-                            setEditingCard(card);
-                            form.reset({ front: card.front, back: card.back });
+                          onClick={() => {setEditingCard(card);
+                            form.reset({ 
+                              front: card.front, 
+                              back: card.back 
+                            });
                             setIsCreating(true);
                           }}
                         >
@@ -431,5 +434,3 @@ export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckP
     </div>
   );
 }
-
-export type { FlashcardFormData };
