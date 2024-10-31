@@ -1,29 +1,37 @@
 // app/api/marketplace/route.ts
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
-import { sharedDeck, deck } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { sharedDeck, user, deckRating, deck } from '@/lib/schema';
+import { eq, sql } from 'drizzle-orm';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = 12;
-  const offset = (page - 1) * limit;
-
   try {
     const db = await getDb();
     
     const decks = await db
-      .select()
+      .select({
+        id: sharedDeck.id,
+        title: sharedDeck.title,
+        description: sharedDeck.description,
+        downloads: sharedDeck.downloads,
+        createdAt: sharedDeck.createdAt,
+        userId: sharedDeck.userId,
+        user: {
+          name: user.name,
+          image: user.image,
+        },
+        averageRating: sql<number>`COALESCE(AVG(${deckRating.rating}), 0)`.as('averageRating'),
+        ratingCount: sql<number>`COUNT(${deckRating.id})`.as('ratingCount'),
+      })
       .from(sharedDeck)
-      .limit(limit)
-      .offset(offset);
+      .leftJoin(user, eq(sharedDeck.userId, user.id))
+      .leftJoin(deckRating, eq(sharedDeck.id, deckRating.sharedDeckId))
+      .groupBy(sharedDeck.id, user.name, user.image);
 
     return NextResponse.json(decks);
   } catch (error) {
-    console.error('Error fetching marketplace decks:', error);
     return NextResponse.json(
       { error: 'Failed to fetch decks' }, 
       { status: 500 }
@@ -70,6 +78,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'You can only share your own decks' },
         { status: 403 }
+      );
+    }
+
+    // Check if this is a marketplace deck
+    if (originalDeck.originalSharedDeckId) {
+      return NextResponse.json(
+        { error: 'Cannot reshare a deck from the marketplace' },
+        { status: 400 }
       );
     }
 

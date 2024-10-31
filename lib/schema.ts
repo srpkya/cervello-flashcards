@@ -1,8 +1,10 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, foreignKey } from 'drizzle-orm/sqlite-core';
 import { type InferSelectModel, type InferInsertModel } from 'drizzle-orm';
+
 
 export const user = sqliteTable('user', {
   id: text('id').notNull().primaryKey(),
+
   name: text('name'),
   email: text('email').unique(),
   emailVerified: integer('emailVerified', { mode: 'timestamp_ms' }),
@@ -26,6 +28,7 @@ export const account = sqliteTable('account', {
   session_state: text('session_state'),
 });
 
+
 export const deck = sqliteTable('deck', {
   id: text('id').notNull().primaryKey(),
   userId: text('user_id')
@@ -35,7 +38,9 @@ export const deck = sqliteTable('deck', {
   description: text('description'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
+  originalSharedDeckId: text('original_shared_deck_id'),
 });
+
 
 export const flashcard = sqliteTable('flashcard', {
   id: text('id').notNull().primaryKey(),
@@ -97,10 +102,15 @@ export const reviewLog = sqliteTable('review_log', {
   responseTime: integer('response_time').notNull(),
 });
 
+
 export const sharedDeck = sqliteTable('shared_deck', {
   id: text('id').notNull().primaryKey(),
-  originalDeckId: text('original_deck_id').notNull().references(() => deck.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  originalDeckId: text('original_deck_id')
+    .notNull()
+    .references(() => deck.id, { onDelete: 'cascade' }),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
   description: text('description'),
   createdAt: integer('created_at').notNull(),
@@ -108,6 +118,7 @@ export const sharedDeck = sqliteTable('shared_deck', {
   downloads: integer('downloads').notNull().default(0),
   isPublic: integer('is_public', { mode: 'boolean' }).notNull().default(true),
 });
+
 
 export const deckRating = sqliteTable('deck_rating', {
   id: text('id').notNull().primaryKey(),

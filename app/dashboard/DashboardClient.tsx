@@ -9,6 +9,7 @@ import { formatStudyTime, formatTimeString } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import StudyStatsChart from './StudyStatsChart';
 
+
 export default function DashboardClient() {
   const { data: session } = useSession();
   const [studyStats, setStudyStats] = React.useState<StudySessionStats | null>(null);

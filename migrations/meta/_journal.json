@@ -22,6 +22,20 @@
       "when": 1730216968479,
       "tag": "0002_cold_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1730376324967,
+      "tag": "0003_chubby_morph",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1730376694624,
+      "tag": "0004_supreme_rocket_raccoon",
+      "breakpoints": true
     }
   ]
 }

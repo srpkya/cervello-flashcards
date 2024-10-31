@@ -4,7 +4,6 @@ import { pipeline, PipelineType } from '@huggingface/transformers';
 import type { 
   Flashcard as DrizzleFlashcard,
   StudySession as DrizzleStudySession,
-  CardState
 } from './schema';
 
 export interface Deck {
@@ -34,12 +33,40 @@ export type Config = {
 }
 
 
-export interface ReviewData {
-  lastReviewed: Date | string;
-  nextReview: Date | string;
-  easeFactor: number;
+export interface Flashcard {
+  id: string;
+  deckId: string;
+  front: string;
+  back: string;
+  audio?: string | null;
+  createdAt: number;
+  updatedAt: number;
+  lastReviewed: number | null;
+  nextReview: number | null;  // Allow null here
+  state: 'new' | 'learning' | 'review' | 'relearning';
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  reps: number;
+  lapses: number;
   interval: number;
+  easeFactor: number;
 }
+
+
+export interface ReviewData {
+  lastReviewed: number;
+  nextReview: number | null;  // Allow null here
+  state: 'new' | 'learning' | 'review' | 'relearning';
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  reps: number;
+  lapses: number;
+}
+
 
 export interface ExtendedUser {
   id: string
@@ -107,6 +134,21 @@ export interface TranslationWorkerMessage {
   options?: Record<string, any>;
 }
 
+export type FlashcardUpdateData = {
+  front: string;
+  back: string;
+  reviewData?: {
+    lastReviewed: number;
+    nextReview: number;
+    state?: 'new' | 'learning' | 'review' | 'relearning';
+    stability?: number;
+    difficulty?: number;
+    elapsedDays?: number;
+    scheduledDays?: number;
+    reps?: number;
+    lapses?: number;
+  };
+};
 
 export interface TranslationWorkerResponse {
   type: 'progress' | 'result' | 'error';
@@ -115,7 +157,24 @@ export interface TranslationWorkerResponse {
   error?: string;
 }
 
-export type Flashcard = DrizzleFlashcard;
-export type StudySession = DrizzleStudySession;
-export type { CardState };
 
+export interface Deck {
+  id: string;
+  userId: string;
+  title: string;
+  description: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CardState {
+  state: 'new' | 'learning' | 'review' | 'relearning';
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  reps: number;
+  lapses: number;
+}
+
+export type StudySession = DrizzleStudySession;

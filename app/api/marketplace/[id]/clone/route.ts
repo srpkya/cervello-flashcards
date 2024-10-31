@@ -1,8 +1,7 @@
-// app/api/marketplace/[id]/clone/route.ts
 import { NextResponse } from 'next/server';
 import { getDb } from '@/lib/db';
 import { sharedDeck, deck, flashcard } from '@/lib/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -21,7 +20,25 @@ export async function POST(
 
     const db = await getDb();
 
-    // Get the shared deck and verify it exists
+    // First check if user already has this deck
+    const existingDeck = await db
+      .select()
+      .from(deck)
+      .where(
+        and(
+          eq(deck.userId, session.user.id),
+          eq(deck.originalSharedDeckId, params.id)
+        )
+      )
+      .get();
+
+    if (existingDeck) {
+      return NextResponse.json(
+        { error: 'You already have this deck in your collection' },
+        { status: 400 }
+      );
+    }
+
     const sharedDeckData = await db
       .select()
       .from(sharedDeck)
@@ -35,31 +52,12 @@ export async function POST(
       );
     }
 
-    // Verify user doesn't already have this deck
-    const existingDeck = await db
-      .select()
-      .from(deck)
-      .where(
-        eq(deck.userId, session.user.id)
-      )
-      .get();
-
-    if (existingDeck) {
-      return NextResponse.json(
-        { error: 'You already have this deck in your collection' },
-        { status: 400 }
-      );
-    }
-
-    // Get all flashcards from the original deck
     const originalFlashcards = await db
       .select()
       .from(flashcard)
       .where(eq(flashcard.deckId, sharedDeckData.originalDeckId));
 
-    // Start a transaction to ensure all operations succeed or fail together
     await db.transaction(async (tx) => {
-      // Create new deck
       const newDeck = {
         id: crypto.randomUUID(),
         userId: session.user.id,
@@ -67,11 +65,11 @@ export async function POST(
         description: sharedDeckData.description,
         createdAt: Date.now(),
         updatedAt: Date.now(),
+        originalSharedDeckId: sharedDeckData.id,
       };
 
       await tx.insert(deck).values(newDeck);
 
-      // Clone all flashcards
       const newFlashcards = originalFlashcards.map(card => ({
         id: crypto.randomUUID(),
         deckId: newDeck.id,
@@ -95,63 +93,27 @@ export async function POST(
 
       await tx.insert(flashcard).values(newFlashcards);
 
-      // Increment download count
       await tx
         .update(sharedDeck)
-        .set({ 
+        .set({
           downloads: sharedDeckData.downloads + 1,
           updatedAt: Date.now()
         })
         .where(eq(sharedDeck.id, params.id));
     });
 
-    // Get the complete new deck with its flashcards
-    const clonedDeck = await db
-      .select()
-      .from(deck)
-      .where(eq(deck.userId, session.user.id))
-      .get();
-
-    const clonedFlashcards = await db
-      .select()
-      .from(flashcard)
-      .where(eq(flashcard.deckId, clonedDeck!.id));
-
     return NextResponse.json({
-      message: 'Deck cloned successfully',
-      deck: {
-        ...clonedDeck,
-        flashcards: clonedFlashcards
-      }
+      message: 'Deck cloned successfully'
     });
 
   } catch (error) {
     console.error('Error cloning deck:', error);
-    
-    // Handle specific error types
-    if (error instanceof Error) {
-      if (error.message.includes('foreign key constraint')) {
-        return NextResponse.json(
-          { error: 'Referenced deck or user not found' },
-          { status: 404 }
-        );
-      }
-      if (error.message.includes('unique constraint')) {
-        return NextResponse.json(
-          { error: 'You already have this deck' },
-          { status: 400 }
-        );
-      }
-    }
-
     return NextResponse.json(
       { error: 'Failed to clone deck' },
       { status: 500 }
     );
   }
 }
-
-// Delete route for removing shared decks
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -167,7 +129,6 @@ export async function DELETE(
 
     const db = await getDb();
 
-    // Verify the deck exists and belongs to the user
     const sharedDeckData = await db
       .select()
       .from(sharedDeck)
@@ -190,7 +151,6 @@ export async function DELETE(
       );
     }
 
-    // Delete the shared deck (cascading will handle ratings and comments)
     await db
       .delete(sharedDeck)
       .where(eq(sharedDeck.id, params.id));

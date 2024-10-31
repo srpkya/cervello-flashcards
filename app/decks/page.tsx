@@ -1,8 +1,9 @@
+// app/decks/page.tsx
 import DecksClient from './DecksClient'
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { getDecks } from '@/lib/db'
-import { ExtendedSession } from '@/lib/types'
+import { ExtendedSession, Deck } from '@/lib/types'
 import { SignInButton } from '@/components/SignInButton'
 
 export default async function DecksPage() {
@@ -17,7 +18,14 @@ export default async function DecksPage() {
     )
   }
 
-  const decks = await getDecks(session.user.id) || []
+  const rawDecks = await getDecks(session.user.id) || [];
+  
+  // Convert timestamps to Date objects
+  const decks: Deck[] = rawDecks.map(deck => ({
+    ...deck,
+    createdAt: new Date(deck.createdAt),
+    updatedAt: new Date(deck.updatedAt)
+  }));
   
   return <DecksClient initialDecks={decks} />
 }

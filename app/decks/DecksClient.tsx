@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from "next-auth/react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -76,7 +78,7 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
         }
 
         const updatedDeck = await response.json();
-        setDecks(prevDecks => prevDecks.map(deck => 
+        setDecks(prevDecks => prevDecks.map(deck =>
           deck.id === editingDeck.id ? updatedDeck : deck
         ));
 
@@ -159,7 +161,7 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
             <h1 className="text-3xl font-light text-neutral-800 dark:text-white">Collections</h1>
             <p className="text-neutral-600 dark:text-neutral-400 mt-2">Create and manage your flashcard collections</p>
           </div>
-          <Button 
+          <Button
             onClick={() => setIsCreating(true)}
             className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
           >
@@ -185,7 +187,7 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                 <p className="text-neutral-600 dark:text-neutral-400 mb-6">
                   Create your first collection to get started
                 </p>
-                <Button 
+                <Button
                   onClick={() => setIsCreating(true)}
                   className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                 >
@@ -220,19 +222,28 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                     <CardFooter className="flex justify-end space-x-2 mt-auto pt-4">
                       <Button
                         variant="outline"
+                        onClick={() => handleDelete(deck.id)}
+                        className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={() => {
                           setEditingDeck(deck);
-                          form.reset({ 
-                            title: deck.title, 
-                            description: deck.description || undefined 
+                          form.reset({
+                            title: deck.title,
+                            description: deck.description || undefined
                           });
                           setIsCreating(true);
                         }}
                         className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
                       >
+                        <Pencil className="h-4 w-4 mr-2" />
                         Edit
                       </Button>
-                      <Button 
+                      <Button
                         onClick={() => router.push(`/decks/${deck.id}`)}
                         className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
                       >
@@ -255,8 +266,8 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
               {editingDeck ? 'Edit Collection' : 'Create New Collection'}
             </DialogTitle>
             <DialogDescription className="dark:text-neutral-400">
-              {editingDeck 
-                ? 'Update your collection details.' 
+              {editingDeck
+                ? 'Update your collection details.'
                 : 'Add a new collection to organize your flashcards.'}
             </DialogDescription>
           </DialogHeader>
@@ -269,10 +280,10 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                   <FormItem>
                     <FormLabel className="dark:text-neutral-300">Title</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="Collection title" 
+                      <Input
+                        placeholder="Collection title"
                         className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-neutral-500"
-                        {...field} 
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -286,8 +297,8 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                   <FormItem>
                     <FormLabel className="dark:text-neutral-300">Description</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Describe your collection" 
+                      <Textarea
+                        placeholder="Describe your collection"
                         className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-neutral-500 resize-none"
                         {...field}
                       />
@@ -296,7 +307,7 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                   </FormItem>
                 )}
               />
-              <Button 
+              <Button
                 type="submit"
                 className="w-full dark:bg-white dark:text-black dark:hover:bg-neutral-200"
               >

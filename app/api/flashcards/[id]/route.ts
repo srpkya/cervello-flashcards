@@ -1,33 +1,234 @@
+// app/api/flashcards/[id]/route.ts
 import { NextResponse } from 'next/server';
-import { updateFlashcard, deleteFlashcard } from '@/lib/db';
+import { getDb, updateFlashcard } from '@/lib/db';
+import { z } from 'zod';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { deck, deckRating, flashcard } from '@/lib/schema';
+import { eq, and } from 'drizzle-orm'
+// Validation schema for review data
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+const reviewDataSchema = z.object({
+  lastReviewed: z.number(),
+  nextReview: z.number().nullable(), // Allow null
+  state: z.enum(['new', 'learning', 'review', 'relearning']),
+  stability: z.number().transform(n => {
+    // Clamp extremely large numbers to a reasonable maximum
+    return Math.min(n, Number.MAX_SAFE_INTEGER);
+  }),
+  difficulty: z.number(),
+  elapsedDays: z.number(),
+  scheduledDays: z.number().transform(n => {
+    // Clamp extremely large numbers to a reasonable maximum
+    return Math.min(n, Number.MAX_SAFE_INTEGER);
+  }),
+  reps: z.number(),
+  lapses: z.number()
+});
+
+const updateSchema = z.object({
+  front: z.string().min(1, "Front content is required"),
+  back: z.string().min(1, "Back content is required"),
+  reviewData: reviewDataSchema
+});
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { front, back, reviewData } = await request.json();
+    const body = await request.json();
+    console.log('Received update request:', {
+      id: params.id,
+      body: JSON.stringify(body, null, 2)
+    });
 
-    if (!front || !back) {
-      return NextResponse.json({ error: 'Front and back are required' }, { status: 400 });
+    // Validate session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const updatedFlashcard = await updateFlashcard(params.id, front, back, reviewData);
-    return NextResponse.json(updatedFlashcard);
+    // Validate the data
+    const validation = updateSchema.safeParse(body);
+    
+    if (!validation.success) {
+      console.error('Validation errors:', validation.error.format());
+      return NextResponse.json({
+        error: 'Validation failed',
+        details: validation.error.format()
+      }, { status: 400 });
+    }
+
+    // Transform the data to handle null nextReview
+    const reviewData = {
+      ...validation.data.reviewData,
+      nextReview: validation.data.reviewData.nextReview ?? null,
+      // Ensure numbers are within safe limits
+      stability: Math.min(Number(validation.data.reviewData.stability), Number.MAX_SAFE_INTEGER),
+      scheduledDays: Math.min(Number(validation.data.reviewData.scheduledDays), Number.MAX_SAFE_INTEGER)
+    };
+
+    const updatedCard = await updateFlashcard(
+      params.id,
+      validation.data.front,
+      validation.data.back,
+      reviewData
+    );
+
+    return NextResponse.json(updatedCard);
+
   } catch (error) {
-    console.error('Error updating flashcard:', error);
+    console.error('Server error:', error);
+    return NextResponse.json({
+      error: 'Server error',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
+  }
+}
+export async function GET(request: Request) {
+  try {
+    // Get the authenticated session
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Please sign in' },
+        { status: 401 }
+      );
+    }
+
+    // Get deck ID from query params
+    const { searchParams } = new URL(request.url);
+    const deckId = searchParams.get('deckId');
+
+    if (!deckId) {
+      return NextResponse.json(
+        { error: 'DeckId is required' },
+        { status: 400 }
+      );
+    }
+
+    const db = await getDb();
+
+    // First verify the deck exists and belongs to the user
+    const deckExists = await db
+      .select()
+      .from(deck)
+      .where(eq(deck.id, deckId))
+      .get();
+
+    if (!deckExists) {
+      return NextResponse.json(
+        { error: `Deck ${deckId} not found` },
+        { status: 404 }
+      );
+    }
+
+    if (deckExists.userId !== session.user.id) {
+      return NextResponse.json(
+        { error: 'You do not have permission to access this deck' },
+        { status: 403 }
+      );
+    }
+
+    // Fetch flashcards
+    const flashcards = await db
+      .select()
+      .from(flashcard)
+      .where(eq(flashcard.deckId, deckId));
+
+    // Return the flashcards
+    return NextResponse.json(flashcards);
+
+  } catch (error) {
+    console.error('Error fetching flashcards:', error);
     return NextResponse.json(
-      { error: 'Failed to update flashcard' },
+      { 
+        error: 'Failed to fetch flashcards',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    await deleteFlashcard(params.id);
-    return NextResponse.json({ message: 'Flashcard deleted successfully' });
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { rating } = await request.json();
+    
+    if (!rating || rating < 1 || rating > 5) {
+      return NextResponse.json(
+        { error: 'Invalid rating value' },
+        { status: 400 }
+      );
+    }
+
+    const db = await getDb();
+
+    // Check if user has already rated this deck
+    const existingRating = await db
+      .select()
+      .from(deckRating)
+      .where(
+        and(
+          eq(deckRating.sharedDeckId, params.id),
+          eq(deckRating.userId, session.user.id)
+        )
+      )
+      .get();
+
+    if (existingRating) {
+      // Update existing rating
+      await db
+        .update(deckRating)
+        .set({
+          rating,
+          updatedAt: Date.now()
+        })
+        .where(eq(deckRating.id, existingRating.id));
+    } else {
+      // Create new rating
+      await db.insert(deckRating).values({
+        id: crypto.randomUUID(),
+        sharedDeckId: params.id,
+        userId: session.user.id,
+        rating,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Calculate new average rating
+    const ratings = await db
+      .select({
+        rating: deckRating.rating
+      })
+      .from(deckRating)
+      .where(eq(deckRating.sharedDeckId, params.id));
+
+    const average = ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length;
+
+    return NextResponse.json({
+      message: 'Rating submitted successfully',
+      averageRating: average,
+      ratingCount: ratings.length
+    });
+
   } catch (error) {
-    console.error('Error deleting flashcard:', error);
+    console.error('Error submitting rating:', error);
     return NextResponse.json(
-      { error: 'Failed to delete flashcard' },
+      { error: 'Failed to submit rating' },
       { status: 500 }
     );
   }

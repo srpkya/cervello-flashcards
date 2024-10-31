@@ -1,5 +1,5 @@
 import { drizzle } from 'drizzle-orm/libsql';
-import { and, eq, gte, lt } from 'drizzle-orm';
+import { and, eq, gte, lt, sql } from 'drizzle-orm';
 import { createClient } from '@libsql/client';
 import * as schema from './schema';
 import { 
@@ -71,6 +71,13 @@ export async function createDeck(userId: string, title: string, description: str
   const now = Date.now();
   
   try {
+    // First verify the user exists
+    const userExists = await db.select().from(user).where(eq(user.id, userId)).get();
+    
+    if (!userExists) {
+      throw new Error(`User with ID ${userId} not found`);
+    }
+
     const newDeck = {
       id: crypto.randomUUID(),
       userId,
@@ -81,9 +88,23 @@ export async function createDeck(userId: string, title: string, description: str
     };
 
     await db.insert(deck).values(newDeck);
-    return newDeck;
+    
+    // Fetch the created deck to verify and return
+    const createdDeck = await db.select()
+      .from(deck)
+      .where(eq(deck.id, newDeck.id))
+      .get();
+
+    if (!createdDeck) {
+      throw new Error('Failed to create deck');
+    }
+
+    return createdDeck;
   } catch (error) {
     console.error('Error creating deck:', error);
+    if (error instanceof Error && error.message.includes('FOREIGN KEY constraint')) {
+      throw new Error(`Invalid user ID: ${userId}`);
+    }
     throw error;
   }
 }
@@ -161,59 +182,74 @@ export async function updateFlashcard(
   front: string,
   back: string,
   reviewData?: {
-    lastReviewed: number | string | Date;
-    nextReview: number | string | Date;
-    state?: schema.CardState;
+    lastReviewed: number;
+    nextReview: number | null;  // Allow null here
+    state?: 'new' | 'learning' | 'review' | 'relearning';
     stability?: number;
     difficulty?: number;
     elapsedDays?: number;
     scheduledDays?: number;
     reps?: number;
     lapses?: number;
-    interval?: number;
-    easeFactor?: number;
   }
 ) {
-  const db = await createDbClient();
+  const db = await getDb();
 
   try {
-    const updateData: Partial<Flashcard> = {
+    const updateData: Record<string, any> = {
       front,
       back,
       updatedAt: Date.now()
     };
 
     if (reviewData) {
-      updateData.lastReviewed = typeof reviewData.lastReviewed === 'number'
-        ? reviewData.lastReviewed
-        : new Date(reviewData.lastReviewed).getTime();
-
-      updateData.nextReview = typeof reviewData.nextReview === 'number'
-        ? reviewData.nextReview
-        : new Date(reviewData.nextReview).getTime();
-
+      updateData.lastReviewed = reviewData.lastReviewed;
+      updateData.nextReview = reviewData.nextReview;
+      
       if (reviewData.state) updateData.state = reviewData.state;
-      if (reviewData.stability !== undefined) updateData.stability = reviewData.stability;
-      if (reviewData.difficulty !== undefined) updateData.difficulty = reviewData.difficulty;
-      if (reviewData.elapsedDays !== undefined) updateData.elapsedDays = reviewData.elapsedDays;
-      if (reviewData.scheduledDays !== undefined) updateData.scheduledDays = reviewData.scheduledDays;
-      if (reviewData.reps !== undefined) updateData.reps = reviewData.reps;
-      if (reviewData.lapses !== undefined) updateData.lapses = reviewData.lapses;
-      if (reviewData.interval !== undefined) updateData.interval = reviewData.interval;
-      if (reviewData.easeFactor !== undefined) updateData.easeFactor = reviewData.easeFactor;
+      if (typeof reviewData.stability === 'number') updateData.stability = reviewData.stability;
+      if (typeof reviewData.difficulty === 'number') updateData.difficulty = reviewData.difficulty;
+      if (typeof reviewData.elapsedDays === 'number') updateData.elapsedDays = reviewData.elapsedDays;
+      if (typeof reviewData.scheduledDays === 'number') updateData.scheduledDays = reviewData.scheduledDays;
+      if (typeof reviewData.reps === 'number') updateData.reps = reviewData.reps;
+      if (typeof reviewData.lapses === 'number') updateData.lapses = reviewData.lapses;
     }
 
-    await db.update(flashcard)
+    await db
+      .update(flashcard)
       .set(updateData)
       .where(eq(flashcard.id, id));
 
-    return await db.select()
+    const updatedCard = await db
+      .select()
       .from(flashcard)
       .where(eq(flashcard.id, id))
       .get();
+
+    if (!updatedCard) {
+      throw new Error('Failed to fetch updated flashcard');
+    }
+
+    // Convert the values to appropriate types
+    return {
+      ...updatedCard,
+      createdAt: Number(updatedCard.createdAt),
+      updatedAt: Number(updatedCard.updatedAt),
+      lastReviewed: updatedCard.lastReviewed ? Number(updatedCard.lastReviewed) : null,
+      nextReview: updatedCard.nextReview ? Number(updatedCard.nextReview) : null,
+      stability: Number(updatedCard.stability),
+      difficulty: Number(updatedCard.difficulty),
+      elapsedDays: Number(updatedCard.elapsedDays),
+      scheduledDays: Number(updatedCard.scheduledDays),
+      reps: Number(updatedCard.reps),
+      lapses: Number(updatedCard.lapses),
+      interval: Number(updatedCard.interval),
+      easeFactor: Number(updatedCard.easeFactor)
+    };
+
   } catch (error) {
-    console.error('Error updating flashcard:', error);
-    throw error;
+    console.error('Error in updateFlashcard:', error);
+    throw new Error(`Failed to update flashcard: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -228,14 +264,70 @@ export async function deleteFlashcard(id: string) {
 }
 
 export async function getFlashcards(deckId: string) {
+  const db = await createDbClient();
+
   try {
-    const db = await createDbClient();
-    return await db.select()
+    // First verify the deck exists
+    const deckExists = await db
+      .select()
+      .from(deck)
+      .where(eq(deck.id, deckId))
+      .get();
+
+    if (!deckExists) {
+      throw new Error('Deck not found');
+    }
+
+    // Use explicit casting in the SQL query to handle BigInt values
+    const cards = await db
+      .select({
+        id: flashcard.id,
+        deckId: flashcard.deckId,
+        front: flashcard.front,
+        back: flashcard.back,
+        audio: flashcard.audio,
+        createdAt: sql<string>`CAST(${flashcard.createdAt} AS TEXT)`,
+        updatedAt: sql<string>`CAST(${flashcard.updatedAt} AS TEXT)`,
+        lastReviewed: sql<string>`CAST(${flashcard.lastReviewed} AS TEXT)`,
+        nextReview: sql<string>`CAST(${flashcard.nextReview} AS TEXT)`,
+        state: flashcard.state,
+        stability: sql<string>`CAST(${flashcard.stability} AS TEXT)`,
+        difficulty: sql<string>`CAST(${flashcard.difficulty} AS TEXT)`,
+        elapsedDays: sql<string>`CAST(${flashcard.elapsedDays} AS TEXT)`,
+        scheduledDays: sql<string>`CAST(${flashcard.scheduledDays} AS TEXT)`,
+        reps: sql<string>`CAST(${flashcard.reps} AS TEXT)`,
+        lapses: sql<string>`CAST(${flashcard.lapses} AS TEXT)`,
+        interval: sql<string>`CAST(${flashcard.interval} AS TEXT)`,
+        easeFactor: sql<string>`CAST(${flashcard.easeFactor} AS TEXT)`
+      })
       .from(flashcard)
       .where(eq(flashcard.deckId, deckId));
+
+    // Convert the string values to appropriate JavaScript types
+    return cards.map(card => ({
+      ...card,
+      createdAt: parseInt(card.createdAt, 10),
+      updatedAt: parseInt(card.updatedAt, 10),
+      lastReviewed: card.lastReviewed ? parseInt(card.lastReviewed, 10) : null,
+      nextReview: card.nextReview ? parseInt(card.nextReview, 10) : null,
+      stability: parseFloat(card.stability),
+      difficulty: parseFloat(card.difficulty),
+      elapsedDays: parseInt(card.elapsedDays, 10),
+      scheduledDays: parseInt(card.scheduledDays, 10),
+      reps: parseInt(card.reps, 10),
+      lapses: parseInt(card.lapses, 10),
+      interval: parseInt(card.interval, 10),
+      easeFactor: parseInt(card.easeFactor, 10)
+    }));
+
   } catch (error) {
-    console.error('Error fetching flashcards:', error);
-    throw error;
+    console.error('Database error in getFlashcards:', error);
+    
+    if (error instanceof Error) {
+      throw new Error(`Failed to fetch flashcards: ${error.message}`);
+    }
+    
+    throw new Error('Failed to fetch flashcards: Unknown error');
   }
 }
 
@@ -251,6 +343,7 @@ export async function createStudySession(
   const db = await createDbClient();
 
   try {
+    // Ensure times are stored as milliseconds timestamps
     const sessionData = {
       id: crypto.randomUUID(),
       userId,
@@ -310,25 +403,31 @@ export async function getStudyStats(userId: string) {
   const todayEnd = todayStart + (24 * 60 * 60 * 1000);
 
   try {
-    // Get today's study sessions
+    // Get today's study sessions with detailed time tracking
     const todaysSessions = await db
-      .select()
-      .from(schema.studySession)
+      .select({
+        cardsStudied: studySession.cardsStudied,
+        startTime: studySession.startTime,
+        endTime: studySession.endTime,
+        correctCount: studySession.correctCount,
+        incorrectCount: studySession.incorrectCount
+      })
+      .from(studySession)
       .where(
         and(
-          eq(schema.studySession.userId, userId),
-          gte(schema.studySession.startTime, todayStart),
-          lt(schema.studySession.startTime, todayEnd)
+          eq(studySession.userId, userId),
+          gte(studySession.startTime, todayStart),
+          lt(studySession.endTime, todayEnd)
         )
       );
 
-    // Calculate today's totals
+    // Calculate total study time in minutes
     const todayStats = todaysSessions.reduce(
       (acc, session) => ({
         cardsStudied: acc.cardsStudied + session.cardsStudied,
         studyTime: acc.studyTime + (session.endTime - session.startTime),
-        correctCount: acc.correctCount + (session.correctCount || 0),
-        incorrectCount: acc.incorrectCount + (session.incorrectCount || 0),
+        correctCount: acc.correctCount + session.correctCount,
+        incorrectCount: acc.incorrectCount + session.incorrectCount,
       }),
       {
         cardsStudied: 0,
@@ -338,24 +437,25 @@ export async function getStudyStats(userId: string) {
       }
     );
 
+    const studyTimeMinutes = Math.round(todayStats.studyTime / (1000 * 60));
+
     // Get last 30 days of data
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
     
     const lastThirtyDaysSessions = await db
       .select()
-      .from(schema.studySession)
+      .from(studySession)
       .where(
         and(
-          eq(schema.studySession.userId, userId),
-          gte(schema.studySession.startTime, thirtyDaysAgo.getTime())
+          eq(studySession.userId, userId),
+          gte(studySession.startTime, thirtyDaysAgo.getTime())
         )
       );
 
-    // Process the sessions into daily data
+    // Process sessions into daily data
     const dailyData = new Map();
     
-    // Initialize all dates in the last 30 days with zero values
+    // Initialize all dates in the last 30 days
     for (let i = 0; i < 30; i++) {
       const date = new Date(now);
       date.setDate(date.getDate() - i);
@@ -376,31 +476,25 @@ export async function getStudyStats(userId: string) {
     // Calculate streak
     let streak = 0;
     let currentDate = new Date(now);
-    currentDate.setHours(0, 0, 0, 0);
     
-    while (streak < 30) { // Limit to 30 days to prevent infinite loop
+    while (streak < 30) {
       const dateStr = currentDate.toISOString().split('T')[0];
       const dayData = dailyData.get(dateStr);
       
-      if (!dayData || dayData.count === 0) {
-        // Stop counting streak if we find a day with no study activity
-        // Unless it's today and we haven't studied yet
-        if (streak > 0 || dateStr !== now.toISOString().split('T')[0]) {
-          break;
-        }
+      if (!dayData || (dayData.count === 0 && dateStr !== now.toISOString().split('T')[0])) {
+        break;
       }
       
-      if (dayData?.count > 0) {
+      if (dayData.count > 0) {
         streak++;
       }
       
-      // Move to previous day
       currentDate.setDate(currentDate.getDate() - 1);
     }
 
     return {
       totalCardsToday: todayStats.cardsStudied,
-      studyTimeToday: Math.floor(todayStats.studyTime / (1000 * 60)), // Convert to minutes
+      studyTimeToday: studyTimeMinutes,
       correctCount: todayStats.correctCount,
       incorrectCount: todayStats.incorrectCount,
       accuracy: todayStats.cardsStudied > 0 
@@ -410,7 +504,7 @@ export async function getStudyStats(userId: string) {
       lastThirtyDays: Array.from(dailyData, ([date, data]) => ({
         date,
         count: data.count,
-        studyTime: Math.floor(data.studyTime / (1000 * 60))
+        studyTime: Math.round(data.studyTime / (1000 * 60)) // Convert to minutes
       })).sort((a, b) => a.date.localeCompare(b.date))
     };
   } catch (error) {
@@ -418,3 +512,4 @@ export async function getStudyStats(userId: string) {
     throw error;
   }
 }
+

@@ -1,12 +1,14 @@
+// app/review/ReviewPageClient.tsx
 'use client'
+
 import React, { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Deck, Flashcard } from '@/lib/types';
-import { Button } from '@/components/ui/button';
+import { useToast } from "@/hooks/use-toast";
 import ReviewDeckSelector from './ReviewDeckSelector';
 import ReviewSession from './ReviewSession';
-import { useToast } from "@/hooks/use-toast";
+import { Button } from '@/components/ui/button';
 
 export default function ReviewPageClient() {
   const { data: session } = useSession();
@@ -15,60 +17,32 @@ export default function ReviewPageClient() {
   const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isReviewStarted, setIsReviewStarted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const router = useRouter();
 
-  if (!session?.user?.id) {
-    router.push('/auth/signin');
-    return null;
-  }
-
   useEffect(() => {
-    const fetchDecks = async () => {
-      if (!session?.user?.id) return;
-      
-      try {
-        const response = await fetch(`/api/decks?userId=${session.user.id}`);
-        if (!response.ok) throw new Error('Failed to fetch decks');
-        const data = await response.json();
-        setDecks(data);
-      } catch (error) {
-        console.error('Error fetching decks:', error);
-        toast({
-          title: "Error",
-          description: "Failed to load decks. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
+    if (!session?.user?.id) {
+      router.push('/auth/signin');
+      return;
+    }
     fetchDecks();
-  }, [session?.user?.id, toast]);
+  }, [session?.user?.id]);
 
-  const startReview = async () => {
-    if (selectedDecks.length === 0) return;
-
-    setIsLoading(true);
-    const allFlashcards: Flashcard[] = [];
-
+  const fetchDecks = async () => {
     try {
-      for (const deck of selectedDecks) {
-        const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
-        if (!response.ok) throw new Error(`Failed to fetch flashcards for deck ${deck.id}`);
-        const deckFlashcards = await response.json();
-        allFlashcards.push(...deckFlashcards);
+      const response = await fetch(`/api/decks?userId=${session?.user?.id}`);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to fetch decks');
       }
-
-      const shuffled = [...allFlashcards].sort(() => Math.random() - 0.5);
-      setFlashcards(shuffled);
-      setIsReviewStarted(true);
+      const data = await response.json();
+      setDecks(data);
     } catch (error) {
-      console.error('Error fetching flashcards:', error);
+      console.error('Error fetching decks:', error);
       toast({
         title: "Error",
-        description: "Failed to load flashcards. Please try again.",
+        description: error instanceof Error ? error.message : "Failed to load decks",
         variant: "destructive",
       });
     } finally {
@@ -76,31 +50,82 @@ export default function ReviewPageClient() {
     }
   };
 
+  const startReview = async () => {
+    if (selectedDecks.length === 0) {
+      toast({
+        title: "Error",
+        description: "Please select at least one deck to review",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    const allFlashcards: Flashcard[] = [];
+
+    try {
+      for (const deck of selectedDecks) {
+        const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Failed to fetch flashcards for deck ${deck.id}`);
+        }
+        
+        const deckFlashcards = await response.json();
+        
+        if (!Array.isArray(deckFlashcards)) {
+          throw new Error(`Invalid response format for deck ${deck.id}`);
+        }
+        
+        allFlashcards.push(...deckFlashcards);
+      }
+
+      if (allFlashcards.length === 0) {
+        toast({
+          title: "No Cards",
+          description: "Selected decks contain no flashcards",
+          variant: "default",
+        });
+        return;
+      }
+
+      const shuffled = [...allFlashcards].sort(() => Math.random() - 0.5);
+      setFlashcards(shuffled);
+      setIsReviewStarted(true);
+    } catch (error) {
+      console.error('Error starting review:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start review');
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to start review",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-pulse text-neutral-600 dark:text-neutral-400">
+        <div className="text-lg text-neutral-600 dark:text-neutral-400">
           Loading...
         </div>
       </div>
     );
   }
 
-  if (decks.length === 0) {
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <h2 className="text-2xl font-light text-neutral-800 dark:text-white">
-          No collections available
-        </h2>
-        <p className="text-neutral-600 dark:text-neutral-400">
-          Create a collection first to start reviewing
-        </p>
-        <Button 
-          onClick={() => router.push('/decks')}
-          className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-        >
-          Create A Collection
-        </Button>
+        <div className="text-red-500 dark:text-red-400">{error}</div>
+        <Button onClick={() => setError(null)}>Try Again</Button>
       </div>
     );
   }

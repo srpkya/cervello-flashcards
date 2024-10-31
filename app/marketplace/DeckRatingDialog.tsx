@@ -2,7 +2,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Star } from "lucide-react";
 import { useSession } from "next-auth/react";
 
@@ -30,6 +30,25 @@ export function DeckRatingDialog({
   const { data: session } = useSession();
   const { toast } = useToast();
 
+  useEffect(() => {
+    if (open && session?.user?.id) {
+      const fetchExistingRating = async () => {
+        try {
+          const response = await fetch(`/api/marketplace/${deck.id}/ratings?userId=${session.user.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.rating) {
+              setSelectedRating(data.rating);
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching existing rating:', error);
+        }
+      };
+      fetchExistingRating();
+    }
+  }, [open, deck.id, session?.user?.id]);
+
   const handleRatingSubmit = async () => {
     if (!session?.user?.id || selectedRating === 0) return;
 
@@ -46,11 +65,8 @@ export function DeckRatingDialog({
 
       if (!response.ok) throw new Error('Failed to submit rating');
       
-      // Calculate new average and count
-      const newCount = deck.ratingCount + 1;
-      const newAverage = ((deck.averageRating * deck.ratingCount) + selectedRating) / newCount;
-      
-      onRatingSubmit(selectedRating, newAverage, newCount);
+      const result = await response.json();
+      onRatingSubmit(selectedRating, result.averageRating, result.ratingCount);
       onOpenChange(false);
 
       toast({
