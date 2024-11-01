@@ -2,8 +2,9 @@ import React from 'react';
 import { render as rtlRender } from '@testing-library/react';
 import { SessionProvider } from 'next-auth/react';
 import { ThemeProvider } from 'next-themes';
+import { mockSession, mockNextRouter } from './mocks';
 
-function render(ui: React.ReactElement, { session = null, ...renderOptions } = {}) {
+function render(ui: React.ReactElement, { session = mockSession, ...renderOptions } = {}) {
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <SessionProvider session={session}>

@@ -14,10 +14,11 @@ export function DeckLabelInput({ labels, onLabelsChange }: DeckLabelInputProps) 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && input.trim()) {
       e.preventDefault();
-      if (!labels.includes(input.trim())) {
-        onLabelsChange([...labels, input.trim()]);
+      const newLabel = input.trim();
+      if (!labels.includes(newLabel)) {
+        onLabelsChange([...labels, newLabel]);
+        setInput('');
       }
-      setInput('');
     }
   };
 

@@ -1,43 +1,64 @@
-// __tests__/app/api/decks/route.test.ts
 import { expect, describe, test, beforeEach, vi } from 'vitest';
 import { GET, POST } from '@/app/api/decks/route';
-import { createMocks, RequestMethod } from 'node-mocks-http';
 import { getServerSession } from 'next-auth';
+import type { NextRequest } from 'next/server';
+import type { Session } from 'next-auth';
+import { mockDb } from '@/vitest.setup';
 import { getDecks, createDeck } from '@/lib/db';
-import { NextRequest } from 'next/server';
-import { Session } from 'next-auth';
 
-vi.mock('next-auth', () => ({
-  getServerSession: vi.fn()
-}));
-
+// Mock the database functions
 vi.mock('@/lib/db', () => ({
   getDecks: vi.fn(),
-  createDeck: vi.fn()
+  createDeck: vi.fn(),
+  getDb: vi.fn().mockResolvedValue({
+    select: vi.fn().mockReturnThis(),
+    from: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    get: vi.fn()
+  })
 }));
 
-const mockedGetServerSession = vi.mocked(getServerSession);
-const mockedGetDecks = vi.mocked(getDecks);
-const mockedCreateDeck = vi.mocked(createDeck);
+// Fix for the jest.Mock type
+import type { Mock } from 'vitest';
 
-const createMockRequest = (options: {
-  method: RequestMethod;
+const mockedGetServerSession = getServerSession as Mock;
+const mockedGetDecks = getDecks as Mock;
+const mockedCreateDeck = createDeck as Mock;
+
+const mockSession = {
+  user: { id: 'test-user', name: 'Test User' },
+  expires: new Date().toISOString()
+} as Session;
+
+interface MockRequestOptions {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
   url?: string;
   query?: Record<string, string>;
   body?: Record<string, any>;
-}) => {
-  const { req } = createMocks({
+}
+
+const createMockRequest = (options: MockRequestOptions): NextRequest => {
+  const url = new URL(options.url || '/', 'http://localhost:3000');
+  if (options.query) {
+    Object.entries(options.query).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
+  }
+
+  return new Request(url, {
     method: options.method,
-    url: options.url,
-    query: options.query,
-    body: options.body
-  });
-  return req as unknown as NextRequest;
+    body: options.body ? JSON.stringify(options.body) : undefined,
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  }) as NextRequest;
 };
 
 describe('Decks API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedGetDecks.mockReset();
+    mockedCreateDeck.mockReset();
   });
 
   describe('GET /api/decks', () => {
@@ -70,11 +91,17 @@ describe('Decks API', () => {
 
       const req = createMockRequest({
         method: 'GET',
-        url: '/api/decks?userId=123',
+        url: '/api/decks',
         query: { userId: '123' }
       });
 
       const response = await GET(req);
+      
+      // Add error logging for debugging
+      if (response.status !== 200) {
+        console.error('Response error:', await response.clone().json());
+      }
+      
       const data = await response.json();
 
       expect(response.status).toBe(200);
@@ -85,11 +112,56 @@ describe('Decks API', () => {
   });
 
   describe('POST /api/decks', () => {
+    test('creates deck with valid data', async () => {
+      mockedGetServerSession.mockResolvedValueOnce(mockSession);
+
+      const mockCreatedDeck = {
+        id: 'new-deck-id',
+        title: 'Test Deck',
+        description: 'Test Description',
+        userId: 'test-user',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        originalSharedDeckId: null,
+        labels: []
+      };
+
+      mockedCreateDeck.mockResolvedValueOnce(mockCreatedDeck);
+
+      const req = createMockRequest({
+        method: 'POST',
+        url: '/api/decks',
+        body: {
+          title: 'Test Deck',
+          description: 'Test Description'
+        }
+      });
+
+      const response = await POST(req);
+      
+      // Add error logging for debugging
+      if (response.status !== 200) {
+        console.error('Response error:', await response.clone().json());
+      }
+      
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data).toEqual(mockCreatedDeck);
+      expect(mockedCreateDeck).toHaveBeenCalledWith(
+        'test-user',
+        'Test Deck',
+        'Test Description',
+        []
+      );
+    });
+
     test('requires authentication', async () => {
       mockedGetServerSession.mockResolvedValueOnce(null);
 
       const req = createMockRequest({
         method: 'POST',
+        url: '/api/decks',
         body: {
           title: 'Test Deck',
           description: 'Test Description'
@@ -101,48 +173,6 @@ describe('Decks API', () => {
 
       const data = await response.json();
       expect(data).toEqual({ error: 'Unauthorized - Please sign in' });
-    });
-
-    test('creates deck with valid data', async () => {
-      const mockSession: Session = {
-        user: { id: '123', name: 'Test User' },
-        expires: new Date().toISOString()
-      };
-
-      mockedGetServerSession.mockResolvedValueOnce(mockSession);
-
-      const mockCreatedDeck = {
-        id: 'new-deck-id',
-        title: 'Test Deck',
-        description: 'Test Description',
-        userId: '123',
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        originalSharedDeckId: null,
-        labels: []
-      };
-
-      mockedCreateDeck.mockResolvedValueOnce(mockCreatedDeck);
-
-      const req = createMockRequest({
-        method: 'POST',
-        body: {
-          title: 'Test Deck',
-          description: 'Test Description'
-        }
-      });
-
-      const response = await POST(req);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toEqual(mockCreatedDeck);
-      expect(mockedCreateDeck).toHaveBeenCalledWith(
-        '123',
-        'Test Deck',
-        'Test Description',
-        []
-      );
     });
   });
 });

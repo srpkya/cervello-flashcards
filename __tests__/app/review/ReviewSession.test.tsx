@@ -1,47 +1,84 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@/test-utils/wrapper';
 import ReviewSession from '@/app/review/ReviewSession';
-import type { Flashcard } from '@/lib/types';
-import { describe, it, expect, vi } from 'vitest';
+import { mockFlashcard } from '@/test-utils/db-mocks';
+import { vi } from 'vitest';
 
 describe('ReviewSession', () => {
-  const mockFlashcards: Flashcard[] = [{
-    id: '1',
-    front: 'Test Front',
-    back: 'Test Back',
-    deckId: '1',
-    state: 'new',
-    stability: 1,
-    difficulty: 5,
-    elapsedDays: 0,
-    scheduledDays: 0,
-    reps: 0,
-    lapses: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    lastReviewed: null,
-    nextReview: null,
-    audio: null,
-    interval: 0,
-    easeFactor: 250
-  }];
-
-  const mockProps = {
-    flashcards: mockFlashcards,
-    onComplete: vi.fn(),
-    userId: 'test-user'
-  };
+  const mockOnComplete = vi.fn();
+  
+  beforeEach(() => {
+    vi.clearAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true })
+    } as Response);
+  });
 
   it('renders flashcard correctly', () => {
-    render(<ReviewSession {...mockProps} />);
+    render(
+      <ReviewSession 
+        flashcards={[mockFlashcard]} 
+        onComplete={mockOnComplete}
+        userId="test-user"
+      />
+    );
+
     expect(screen.getByText('Test Front')).toBeInTheDocument();
   });
 
-  it('shows completion screen after reviewing all cards', async () => {
-    render(<ReviewSession {...mockProps} />);
-    
+  it('shows back of card when clicked', async () => {
+    render(
+      <ReviewSession 
+        flashcards={[mockFlashcard]} 
+        onComplete={mockOnComplete}
+        userId="test-user"
+      />
+    );
+
     fireEvent.click(screen.getByText('Test Front'));
-    fireEvent.click(screen.getByText('Good'));
+    expect(await screen.findByText('Test Back')).toBeInTheDocument();
+  });
+
+  it('shows completion screen after reviewing all cards', async () => {
+    render(
+      <ReviewSession 
+        flashcards={[mockFlashcard]} 
+        onComplete={mockOnComplete}
+        userId="test-user"
+      />
+    );
+
+    // Flip card
+    fireEvent.click(screen.getByText('Test Front'));
     
-    expect(await screen.findByText(/Review Complete/i)).toBeInTheDocument();
+    // Find and click the "Good" button
+    const goodButton = await screen.findByText('Good');
+    fireEvent.click(goodButton);
+
+    // Wait for completion screen
+    await waitFor(() => {
+      expect(screen.getByText(/Review Complete/i)).toBeInTheDocument();
+    });
+  });
+
+  it('calls onComplete when starting new session', async () => {
+    render(
+      <ReviewSession 
+        flashcards={[mockFlashcard]} 
+        onComplete={mockOnComplete}
+        userId="test-user"
+      />
+    );
+
+    // Complete the review
+    fireEvent.click(screen.getByText('Test Front'));
+    const goodButton = await screen.findByText('Good');
+    fireEvent.click(goodButton);
+
+    // Find and click the "Start New Session" button
+    const startNewButton = await screen.findByText('Start New Session');
+    fireEvent.click(startNewButton);
+
+    expect(mockOnComplete).toHaveBeenCalled();
   });
 });
