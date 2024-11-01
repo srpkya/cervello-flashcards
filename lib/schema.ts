@@ -137,6 +137,22 @@ export const deckComment = sqliteTable('deck_comment', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 });
+
+export const label = sqliteTable('label', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  createdAt: integer('created_at').notNull(),
+});
+
+export const deckLabel = sqliteTable('deck_label', {
+  id: text('id').primaryKey(),
+  deckId: text('deck_id')
+    .notNull()
+    .references(() => deck.id, { onDelete: 'cascade' }),
+  labelId: text('label_id')
+    .notNull()
+    .references(() => label.id, { onDelete: 'cascade' }),
+});
 // Types
 export type User = InferSelectModel<typeof user>;
 export type NewUser = InferInsertModel<typeof user>;

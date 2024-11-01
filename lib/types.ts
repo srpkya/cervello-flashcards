@@ -13,6 +13,8 @@ export interface Deck {
   userId: string;
   createdAt: Date;
   updatedAt: Date;
+  labels?: string[];
+  originalSharedDeckId?: string | null;
 }
 
 export interface StudyData {

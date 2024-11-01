@@ -1,0 +1,37 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+      "jsx": "react-jsx",
+      "module": "commonjs",
+      "target": "es2017",
+      "esModuleInterop": true,
+      "allowJs": true,
+      "noEmit": true,
+      "moduleResolution": "node",
+      "isolatedModules": true,
+      "types": [
+        "jest",
+        "node",
+        "@testing-library/jest-dom"
+      ],
+      "typeRoots": [
+        "./node_modules/@types",
+        "./types"
+      ],
+      "skipLibCheck": true,
+      "strict": true
+    },
+    "include": [
+      "**/*.ts",
+      "**/*.tsx",
+      "__tests__/**/*",
+      "jest.setup.ts",
+      "jest.config.ts",
+      "jest.environment.ts",
+      "jest.polyfills.ts",
+      "types/**/*"
+    ],
+    "exclude": [
+      "node_modules"
+    ]
+  }

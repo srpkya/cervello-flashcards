@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useSession } from "next-auth/react";
+import { Search } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Pencil, Trash2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -19,13 +20,45 @@ import { Deck, ExtendedSession } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { DeckLabelInput } from '@/components/DeckLabelInput';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  description: z.string().optional()
+  description: z.string().optional(),
+  labels: z.array(z.string()).default([])
 });
 
 type FormData = z.infer<typeof formSchema>;
+
+interface DeckLabelsProps {
+  labels?: string[] | null;
+}
+
+export function SearchBar({
+  value,
+  onChange,
+  placeholder = "Search collections...",
+  className = ""
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div className={`relative ${className}`}>
+      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500 dark:text-neutral-400" />
+      <Input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="pl-9 dark:bg-white/5 dark:border-white/10"
+      />
+    </div>
+  );
+}
 
 const formatDate = (date: Date) => {
   return new Intl.DateTimeFormat('en-US', {
@@ -36,13 +69,24 @@ const formatDate = (date: Date) => {
   }).format(new Date(date));
 };
 
+
 export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) {
   const { data: session } = useSession();
-  const [decks, setDecks] = useState<Deck[]>(initialDecks);
+  const [decks, setDecks] = useState<Deck[]>(
+    initialDecks.map(deck => ({
+      ...deck,
+      labels: deck.labels || []
+    }))
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState('');
+  initialDecks.map(deck => ({
+    ...deck,
+    labels: deck.labels || [] // Ensure labels is always an array
+  }))
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -63,57 +107,39 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
     }
 
     try {
+      const response = await fetch(editingDeck ? `/api/decks/${editingDeck.id}` : '/api/decks', {
+        method: editingDeck ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: session.user.id,
+          title: data.title,
+          description: data.description || '',
+          labels: data.labels || []
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save deck');
+      }
+
+      const savedDeck = await response.json();
+
       if (editingDeck) {
-        const response = await fetch(`/api/decks/${editingDeck.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title: data.title,
-            description: data.description || ''
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to update deck');
-        }
-
-        const updatedDeck = await response.json();
         setDecks(prevDecks => prevDecks.map(deck =>
-          deck.id === editingDeck.id ? updatedDeck : deck
+          deck.id === editingDeck.id ? savedDeck : deck
         ));
-
-        toast({
-          title: "Success",
-          description: "Deck updated successfully",
-        });
       } else {
-        const response = await fetch('/api/decks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: session.user.id,
-            title: data.title,
-            description: data.description || ''
-          })
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to create deck');
-        }
-
-        const newDeck = await response.json();
-        if (newDeck && newDeck.id) {
-          setDecks(prevDecks => [...prevDecks, newDeck]);
-          toast({
-            title: "Success",
-            description: "Deck created successfully",
-          });
-        }
+        setDecks(prevDecks => [...prevDecks, savedDeck]);
       }
 
       form.reset();
       setIsCreating(false);
       setEditingDeck(null);
+
+      toast({
+        title: "Success",
+        description: `Deck ${editingDeck ? 'updated' : 'created'} successfully`,
+      });
     } catch (error) {
       console.error("Failed to save deck:", error);
       toast({
@@ -124,34 +150,71 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
     }
   };
 
-  const handleDelete = async (deckId: string) => {
-    if (!confirm('Are you sure you want to delete this deck?')) {
-      return;
-    }
+  const filteredDecks = React.useMemo(() => {
+    const searchLower = searchQuery.toLowerCase();
+    return decks.filter(deck => {
+      // Search in title and description
+      const titleMatch = deck.title?.toLowerCase().includes(searchLower) ?? false;
+      const descriptionMatch = deck.description?.toLowerCase().includes(searchLower) ?? false;
 
+      // Safely handle labels search with proper null checking
+      const labelMatch = Array.isArray(deck.labels) && deck.labels.length > 0
+        ? deck.labels.some(label =>
+          label && typeof label === 'string' && label.toLowerCase().includes(searchLower)
+        )
+        : false;
+
+      return titleMatch || descriptionMatch || labelMatch;
+    });
+  }, [decks, searchQuery]);
+
+  const DeckLabels: React.FC<DeckLabelsProps> = ({ labels }) => {
+    if (!labels?.length) return null;
+
+    return (
+      <div className="flex flex-wrap gap-2 mt-2">
+        {labels.map(label => (
+          label ?
+            (<Badge
+              key={label}
+              variant="secondary"
+              className="px-2 py-1 bg-neutral-100 dark:bg-white/10 text-neutral-700 dark:text-neutral-300"
+            >
+              {label}
+            </Badge>)
+            : ""
+        ))}
+      </div>
+    );
+  };
+
+  const handleDelete = async (deck: Deck) => {
     try {
-      const response = await fetch(`/api/decks/${deckId}`, {
-        method: 'DELETE'
+      const response = await fetch(`/api/decks/${deck.id}`, {
+        method: 'DELETE',
       });
 
       if (!response.ok) {
         throw new Error('Failed to delete deck');
       }
 
-      setDecks(prevDecks => prevDecks.filter(deck => deck.id !== deckId));
+      setDecks(prevDecks => prevDecks.filter(d => d.id !== deck.id));
+
       toast({
         title: "Success",
-        description: "Deck deleted successfully",
+        description: "Collection deleted successfully",
       });
     } catch (error) {
       console.error("Failed to delete deck:", error);
       toast({
         title: "Error",
         description: "Failed to delete deck. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
     }
   };
+
+
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -161,42 +224,66 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
             <h1 className="text-3xl font-light text-neutral-800 dark:text-white">Collections</h1>
             <p className="text-neutral-600 dark:text-neutral-400 mt-2">Create and manage your flashcard collections</p>
           </div>
-          <Button
-            onClick={() => setIsCreating(true)}
-            className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-          >
-            <PlusCircle className="mr-2 h-4 w-4" />
-            New Collection
-          </Button>
+          <div className="flex gap-5">
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search collections..."
+            />
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              New Collection
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <AnimatePresence mode="popLayout">
-            {decks.length === 0 ? (
+            {filteredDecks.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="col-span-full flex flex-col items-center justify-center p-12 text-center"
               >
-                <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
-                  <Sparkles className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
-                </div>
-                <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
-                  No collections yet
-                </h3>
-                <p className="text-neutral-600 dark:text-neutral-400 mb-6">
-                  Create your first collection to get started
-                </p>
-                <Button
-                  onClick={() => setIsCreating(true)}
-                  className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Create Collection
-                </Button>
+                {searchQuery ? (
+                  <>
+                    <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+                      <Search className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
+                    </div>
+                    <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
+                      No matching collections found
+                    </h3>
+                    <p className="text-neutral-600 dark:text-neutral-400">
+                      Try adjusting your search terms
+                    </p>
+                  </>
+                ) : (
+                  // Your existing empty state
+                  <>
+                    <div className="w-16 h-16 bg-neutral-100 dark:bg-white/5 rounded-full flex items-center justify-center mb-6">
+                      <Sparkles className="w-8 h-8 text-neutral-500 dark:text-neutral-400" />
+                    </div>
+                    <h3 className="text-xl font-light text-neutral-800 dark:text-white mb-2">
+                      No collections yet
+                    </h3>
+                    <p className="text-neutral-600 dark:text-neutral-400 mb-6">
+                      Create your first collection to get started
+                    </p>
+                    <Button
+                      onClick={() => setIsCreating(true)}
+                      className="dark:bg-white dark:text-black dark:hover:bg-neutral-200"
+                    >
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      Create Collection
+                    </Button>
+                  </>
+                )}
               </motion.div>
             ) : (
-              decks.map((deck, index) => (
+              filteredDecks.map((deck, index) => (
                 <motion.div
                   key={deck.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -215,19 +302,41 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="flex-grow">
-                      <div className="flex items-center text-sm dark:text-neutral-400">
-                        <span>Created {formatDate(deck.createdAt)}</span>
+                      <div className="space-y-4">
+                        <DeckLabels labels={deck.labels} />
                       </div>
                     </CardContent>
                     <CardFooter className="flex justify-end space-x-2 mt-auto pt-4">
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDelete(deck.id)}
-                        className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            onClick={(e) => e.stopPropagation()}
+                            className="dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Collection</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete &quot;{deck.title}&quot;? This action cannot be undone
+                              and all flashcards in this collection will be permanently deleted.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(deck)}
+                              className="bg-red-600 hover:bg-red-700"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                       <Button
                         variant="outline"
                         onClick={() => {
@@ -301,6 +410,22 @@ export default function DecksClient({ initialDecks }: { initialDecks: Deck[] }) 
                         placeholder="Describe your collection"
                         className="dark:bg-white/5 dark:border-white/10 dark:text-white dark:placeholder-neutral-500 resize-none"
                         {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="labels"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="dark:text-neutral-300">Labels</FormLabel>
+                    <FormControl>
+                      <DeckLabelInput
+                        labels={field.value || []}
+                        onLabelsChange={(newLabels) => field.onChange(newLabels)}
                       />
                     </FormControl>
                     <FormMessage />

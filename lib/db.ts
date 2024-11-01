@@ -6,7 +6,11 @@ import {
   user, deck, flashcard, studySession, reviewLog,
   type User, type Deck, type Flashcard, 
   type StudySession, type ReviewLog,
-  type CardState
+  type CardState,
+  deckLabel,
+  label,
+  sharedDeck,
+  deckRating
 } from './schema';
 
 const RETRY_ATTEMPTS = 3;
@@ -47,9 +51,31 @@ export async function createDbClient() {
 
 export async function getDecks(userId: string) {
   try {
-    const db = await createDbClient();
-    const results = await db.select().from(deck).where(eq(deck.userId, userId));
-    return results;
+    const db = await getDb();
+    
+    // Join with deck_label and label tables to get labels
+    const decksWithLabels = await db
+      .select({
+        id: deck.id,
+        userId: deck.userId,
+        title: deck.title,
+        description: deck.description,
+        createdAt: deck.createdAt,
+        updatedAt: deck.updatedAt,
+        originalSharedDeckId: deck.originalSharedDeckId,
+        labels: sql<string[]>`JSON_GROUP_ARRAY(DISTINCT CASE WHEN ${label.name} IS NULL THEN NULL ELSE ${label.name} END)`
+      })
+      .from(deck)
+      .leftJoin(deckLabel, eq(deck.id, deckLabel.deckId))
+      .leftJoin(label, eq(deckLabel.labelId, label.id))
+      .where(eq(deck.userId, userId))
+      .groupBy(deck.id);
+
+    return decksWithLabels.map(deck => ({
+      ...deck,
+      labels: deck.labels[0] === null ? [] 
+        : Array.from(new Set(JSON.parse(deck.labels.toString())))
+    }));
   } catch (error) {
     console.error('Error fetching decks:', error);
     throw error;
@@ -66,62 +92,118 @@ export async function getDeck(id: string) {
   }
 }
 
-export async function createDeck(userId: string, title: string, description: string) {
-  const db = await createDbClient();
+export async function createDeck(
+  userId: string, 
+  title: string, 
+  description: string,
+  labels: string[] = []
+) {
+  const db = await getDb();
   const now = Date.now();
   
   try {
-    // First verify the user exists
-    const userExists = await db.select().from(user).where(eq(user.id, userId)).get();
+    const deckId = crypto.randomUUID();
     
-    if (!userExists) {
-      throw new Error(`User with ID ${userId} not found`);
-    }
+    await db.transaction(async (tx) => {
+      // Create the deck
+      await tx.insert(deck).values({
+        id: deckId,
+        userId,
+        title,
+        description,
+        createdAt: now,
+        updatedAt: now,
+      });
 
-    const newDeck = {
-      id: crypto.randomUUID(),
-      userId,
-      title,
-      description,
-      createdAt: now,
-      updatedAt: now,
-    };
+      // Handle labels
+      for (const labelName of labels) {
+        // Create or get existing label
+        let labelId = crypto.randomUUID();
+        const existingLabel = await tx
+          .select()
+          .from(label)
+          .where(eq(label.name, labelName))
+          .get();
 
-    await db.insert(deck).values(newDeck);
-    
-    // Fetch the created deck to verify and return
-    const createdDeck = await db.select()
-      .from(deck)
-      .where(eq(deck.id, newDeck.id))
-      .get();
+        if (existingLabel) {
+          labelId = existingLabel.id;
+        } else {
+          await tx.insert(label).values({
+            id: labelId,
+            name: labelName,
+            createdAt: now,
+          });
+        }
 
-    if (!createdDeck) {
-      throw new Error('Failed to create deck');
-    }
+        // Create deck-label association
+        await tx.insert(deckLabel).values({
+          id: crypto.randomUUID(),
+          deckId: deckId,
+          labelId: labelId,
+        });
+      }
+    });
 
-    return createdDeck;
+    return await getDeck(deckId);
   } catch (error) {
     console.error('Error creating deck:', error);
-    if (error instanceof Error && error.message.includes('FOREIGN KEY constraint')) {
-      throw new Error(`Invalid user ID: ${userId}`);
-    }
     throw error;
   }
 }
 
-export async function updateDeck(id: string, title: string, description: string) {
-  const db = await createDbClient();
+export async function updateDeck(
+  id: string, 
+  title: string, 
+  description: string,
+  labels: string[] = []
+) {
+  const db = await getDb();
   
   try {
-    await db.update(deck)
-      .set({
-        title,
-        description,
-        updatedAt: Date.now()
-      })
-      .where(eq(deck.id, id));
+    await db.transaction(async (tx) => {
+      // Update deck details
+      await tx.update(deck)
+        .set({
+          title,
+          description,
+          updatedAt: Date.now()
+        })
+        .where(eq(deck.id, id));
 
-    return await getDeck(id);
+      // Remove existing labels
+      await tx.delete(deckLabel)
+        .where(eq(deckLabel.deckId, id));
+
+      // Add new labels
+      for (const labelName of labels) {
+        // Create or get existing label
+        let labelId = crypto.randomUUID();
+        const existingLabel = await tx
+          .select()
+          .from(label)
+          .where(eq(label.name, labelName))
+          .get();
+
+        if (existingLabel) {
+          labelId = existingLabel.id;
+        } else {
+          await tx.insert(label).values({
+            id: labelId,
+            name: labelName,
+            createdAt: Date.now(),
+          });
+        }
+
+        // Create deck-label association
+        await tx.insert(deckLabel).values({
+          id: crypto.randomUUID(),
+          deckId: id,
+          labelId: labelId,
+        });
+      }
+    });
+
+    return getDeck(id);
   } catch (error) {
     console.error('Error updating deck:', error);
     throw error;
@@ -513,3 +595,36 @@ export async function getStudyStats(userId: string) {
   }
 }
 
+export async function getMarketplaceDecks() {
+  const db = await getDb();
+  
+  const decks = await db
+    .select({
+      id: sharedDeck.id,
+      title: sharedDeck.title,
+      description: sharedDeck.description,
+      downloads: sharedDeck.downloads,
+      createdAt: sharedDeck.createdAt,
+      userId: sharedDeck.userId,
+      user: {
+        name: user.name,
+        image: user.image,
+      },
+      averageRating: sql<number>`COALESCE(AVG(${deckRating.rating}), 0)`.as('averageRating'),
+      ratingCount: sql<number>`COUNT(${deckRating.id})`.as('ratingCount'),
+      labels: sql<string[]>`JSON_GROUP_ARRAY(DISTINCT CASE WHEN ${label.name} IS NULL THEN NULL ELSE ${label.name} END)`
+    })
+    .from(sharedDeck)
+    .leftJoin(user, eq(sharedDeck.userId, user.id))
+    .leftJoin(deckRating, eq(sharedDeck.id, deckRating.sharedDeckId))
+    .leftJoin(deckLabel, eq(sharedDeck.id, deckLabel.deckId))
+    .leftJoin(label, eq(deckLabel.labelId, label.id))
+    .groupBy(sharedDeck.id, user.name, user.image);
+
+  // Transform the results to handle empty labels and JSON parsing
+  return decks.map(deck => ({
+    ...deck,
+    labels: deck.labels[0] === null ? [] 
+      : Array.from(new Set(JSON.parse(deck.labels.toString())))
+  }));
+}

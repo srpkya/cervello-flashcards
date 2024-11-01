@@ -32,6 +32,7 @@ const updateSchema = z.object({
   reviewData: reviewDataSchema
 });
 
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
@@ -49,30 +50,22 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Validate the data
-    const validation = updateSchema.safeParse(body);
-    
-    if (!validation.success) {
-      console.error('Validation errors:', validation.error.format());
-      return NextResponse.json({
-        error: 'Validation failed',
-        details: validation.error.format()
-      }, { status: 400 });
-    }
-
-    // Transform the data to handle null nextReview
+    // Transform the data to handle state updates
     const reviewData = {
-      ...validation.data.reviewData,
-      nextReview: validation.data.reviewData.nextReview ?? null,
-      // Ensure numbers are within safe limits
-      stability: Math.min(Number(validation.data.reviewData.stability), Number.MAX_SAFE_INTEGER),
-      scheduledDays: Math.min(Number(validation.data.reviewData.scheduledDays), Number.MAX_SAFE_INTEGER)
+      ...body.reviewData,
+      // Ensure nextReview is properly calculated
+      nextReview: body.reviewData.nextReview !== null ? 
+        body.reviewData.nextReview : 
+        Date.now() + (body.reviewData.scheduledDays * 24 * 60 * 60 * 1000),
+      // Clamp values to prevent overflow
+      stability: Math.min(Number(body.reviewData.stability), 365 * 10), // Max 10 years
+      scheduledDays: Math.min(Number(body.reviewData.scheduledDays), 365) // Max 1 year
     };
 
     const updatedCard = await updateFlashcard(
       params.id,
-      validation.data.front,
-      validation.data.back,
+      body.front,
+      body.back,
       reviewData
     );
 

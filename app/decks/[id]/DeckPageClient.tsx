@@ -83,15 +83,49 @@ export default function DeckPageClient({
 
   const fetchFlashcards = async () => {
     try {
+      // First ensure we have a valid deck ID
+      if (!deck?.id) {
+        console.error("Missing deck ID");
+        return;
+      }
+  
       const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
-      if (!response.ok) throw new Error('Failed to fetch flashcards');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch flashcards');
+      }
+  
       const fetchedFlashcards = await response.json();
-      setFlashcards(fetchedFlashcards);
+      
+      // Validate the response data
+      if (!Array.isArray(fetchedFlashcards)) {
+        throw new Error('Invalid flashcards data received');
+      }
+  
+      // Convert timestamps to proper format
+      const processedFlashcards = fetchedFlashcards.map(card => ({
+        ...card,
+        createdAt: Number(card.createdAt),
+        updatedAt: Number(card.updatedAt),
+        lastReviewed: card.lastReviewed ? Number(card.lastReviewed) : null,
+        nextReview: card.nextReview ? Number(card.nextReview) : null,
+        stability: Number(card.stability),
+        difficulty: Number(card.difficulty),
+        elapsedDays: Number(card.elapsedDays),
+        scheduledDays: Number(card.scheduledDays),
+        reps: Number(card.reps),
+        lapses: Number(card.lapses),
+        interval: Number(card.interval),
+        easeFactor: Number(card.easeFactor)
+      }));
+  
+      setFlashcards(processedFlashcards);
     } catch (error) {
       console.error("Failed to fetch flashcards:", error);
       toast({
         title: "Error",
-        description: "Failed to load flashcards. Please refresh the page.",
+        description: error instanceof Error ? error.message : "Failed to load flashcards",
         variant: "destructive",
       });
     }
@@ -118,7 +152,7 @@ export default function DeckPageClient({
       checkSharedStatus();
     }
   }, [deck?.id]);
-  
+
   const handleShareDeck = async () => {
     if (!session?.user?.id) {
       toast({
@@ -134,17 +168,16 @@ export default function DeckPageClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          deckId: deck.id,
-          userId: session.user.id
+          deckId: deck.id
         }),
       });
   
+      const data = await response.json();
+  
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to share deck');
+        throw new Error(data.error || 'Failed to share deck');
       }
   
-      const data = await response.json();
       setIsShared(true);
       toast({
         title: "Success",
@@ -393,15 +426,17 @@ export default function DeckPageClient({
                   <Globe className="mr-2 h-4 w-4" />
                   Add Translation Card
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={handleShareDeck}
-                  disabled={isShared}
-                  className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
-                >
-                  <Globe className="mr-2 h-4 w-4" />
-                  {isShared ? 'Shared on Marketplace' : 'Share to Marketplace'}
-                </Button>
+                {!deck.originalSharedDeckId && (
+                  <Button
+                    variant="outline"
+                    onClick={handleShareDeck}
+                    disabled={isShared}
+                    className="border-neutral-300 hover:border-neutral-400 dark:border-white/10 dark:hover:border-white/20 dark:text-white"
+                  >
+                    <Globe className="mr-2 h-4 w-4" />
+                    {isShared ? 'Shared on Marketplace' : 'Share to Marketplace'}
+                  </Button>
+                )}
               </div>
             </CardFooter>
           </Card>

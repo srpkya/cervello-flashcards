@@ -57,41 +57,49 @@ export async function POST(
       .from(flashcard)
       .where(eq(flashcard.deckId, sharedDeckData.originalDeckId));
 
+    let newDeckId: string | null = null;
+
     await db.transaction(async (tx) => {
+      // Create the new deck, now including originalSharedDeckId to track its origin
       const newDeck = {
         id: crypto.randomUUID(),
         userId: session.user.id,
         title: `${sharedDeckData.title} (Copied)`,
-        description: sharedDeckData.description,
+        description: sharedDeckData.description || '',
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        originalSharedDeckId: sharedDeckData.id,
+        originalSharedDeckId: params.id, // Store the ID of the shared deck it was copied from
       };
 
       await tx.insert(deck).values(newDeck);
+      newDeckId = newDeck.id;
 
-      const newFlashcards = originalFlashcards.map(card => ({
-        id: crypto.randomUUID(),
-        deckId: newDeck.id,
-        front: card.front,
-        back: card.back,
-        audio: card.audio,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-        lastReviewed: null,
-        nextReview: null,
-        state: 'new' as const,
-        stability: 1,
-        difficulty: 5,
-        elapsedDays: 0,
-        scheduledDays: 0,
-        reps: 0,
-        lapses: 0,
-        interval: 0,
-        easeFactor: 250,
-      }));
+      if (originalFlashcards.length > 0) {
+        const newFlashcards = originalFlashcards.map(card => ({
+          id: crypto.randomUUID(),
+          deckId: newDeck.id,
+          front: card.front,
+          back: card.back,
+          audio: card.audio,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lastReviewed: null,
+          nextReview: null,
+          state: 'new' as const,
+          stability: 1,
+          difficulty: 5,
+          elapsedDays: 0,
+          scheduledDays: 0,
+          reps: 0,
+          lapses: 0,
+          interval: 0,
+          easeFactor: 250,
+        }));
 
-      await tx.insert(flashcard).values(newFlashcards);
+        if (newFlashcards.length > 0) {
+          await tx.insert(flashcard).values(newFlashcards);
+        }
+      }
 
       await tx
         .update(sharedDeck)
@@ -103,7 +111,8 @@ export async function POST(
     });
 
     return NextResponse.json({
-      message: 'Deck cloned successfully'
+      message: 'Deck cloned successfully',
+      deckId: newDeckId
     });
 
   } catch (error) {
@@ -114,6 +123,8 @@ export async function POST(
     );
   }
 }
+
+
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
