@@ -2,12 +2,14 @@
   "name": "flashcard-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "migrate": "tsx lib/migrate.ts"
+    "lint": "next lint"
   },
   "dependencies": {
     "@auth/core": "0.37.2",
@@ -67,13 +69,10 @@
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.16",
-    "dotenv": "^16.4.5",
-    "drizzle-kit": "^0.19.13",
     "eslint": "8.49.0",
     "eslint-config-next": "13.5.6",
     "postcss": "8.4.31",
     "tailwindcss": "3.3.5",
-    "tsx": "^3.14.0",
     "typescript": "5.2.2"
   }
 }
