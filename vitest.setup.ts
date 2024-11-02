@@ -1,9 +1,9 @@
-import '@testing-library/jest-dom/vitest';
+/// <reference types="@testing-library/jest-dom" />
+import '@testing-library/jest-dom'
 import { server } from './__mocks__/msw/server';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
-// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({

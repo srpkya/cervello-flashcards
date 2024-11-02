@@ -15,7 +15,6 @@ export async function GET(request: Request) {
     return NextResponse.json(result);
   }
 
-
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
 
@@ -26,19 +25,19 @@ export async function POST(request: Request) {
   const db = await getDb();
 
   if (action === 'createDeck' && userId && title) {
+    const now = Date.now(); // Get current timestamp as number
     const newDeck = {
-      id: crypto.randomUUID(), 
+      id: crypto.randomUUID(),
       userId: userId,
       title: title,
       description: description || '',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      createdAt: now,  // Use number timestamp instead of Date object
+      updatedAt: now,  // Use number timestamp instead of Date object
     };
 
     const result = await db.insert(deck).values(newDeck);
     return NextResponse.json({ ...newDeck, ...result });
   }
-
 
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }
