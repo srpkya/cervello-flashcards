@@ -1,12 +1,11 @@
 {
-    "build": {
-      "env": {
-        "NEXT_TELEMETRY_DISABLED": "1"
-      }
-    },
-    "git": {
-      "deploymentEnabled": {
-        "main": true
-      }
+  "build": {
+    "installCommand": "pnpm install",
+    "buildCommand": "pnpm build"
+  },
+  "git": {
+    "deploymentEnabled": {
+      "main": true
     }
   }
+}
