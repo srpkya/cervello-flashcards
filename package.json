@@ -2,20 +2,16 @@
   "name": "flashcard-app",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": ">=18.0.0"
-  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
     "@auth/core": "0.37.2",
     "@auth/drizzle-adapter": "1.7.2",
     "@hookform/resolvers": "3.3.2",
-    "@libsql/client": "^0.3.6",
+    "@libsql/client": "0.3.6",
     "@radix-ui/react-accordion": "1.1.2",
     "@radix-ui/react-alert-dialog": "1.0.5",
     "@radix-ui/react-aspect-ratio": "1.0.3",
@@ -47,7 +43,7 @@
     "clsx": "2.0.0",
     "cmdk": "0.2.0",
     "date-fns": "2.30.0",
-    "drizzle-orm": "^0.28.5",
+    "drizzle-orm": "0.28.5",
     "embla-carousel-react": "8.0.0-rc14",
     "framer-motion": "10.16.4",
     "lucide-react": "0.292.0",
@@ -69,8 +65,6 @@
     "@types/react": "18.2.22",
     "@types/react-dom": "18.2.7",
     "autoprefixer": "10.4.16",
-    "eslint": "8.49.0",
-    "eslint-config-next": "13.5.6",
     "postcss": "8.4.31",
     "tailwindcss": "3.3.5",
     "typescript": "5.2.2"
