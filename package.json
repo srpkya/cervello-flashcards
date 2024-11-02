@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "postinstall": "npm install --legacy-peer-deps"
   },
   "dependencies": {
     "@auth/core": "0.37.2",
