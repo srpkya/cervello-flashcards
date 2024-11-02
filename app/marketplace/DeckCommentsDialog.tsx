@@ -46,12 +46,6 @@ export function DeckCommentsDialog({
   const { data: session } = useSession();
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (open && deck) {
-      fetchComments();
-    }
-  }, [open, deck]);
-
   const fetchComments = async () => {
     setIsLoading(true);
     try {
@@ -69,6 +63,14 @@ export function DeckCommentsDialog({
       setIsLoading(false);
     }
   };
+  
+  useEffect(() => {
+    if (open && deck) {
+      fetchComments();
+    }
+  }, [open, deck, fetchComments]);
+
+  
 
   const handleSubmitComment = async () => {
     if (!session?.user?.id || !newComment.trim()) return;

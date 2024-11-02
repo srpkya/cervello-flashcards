@@ -35,12 +35,19 @@ export default function ReviewSession({
   const { toast } = useToast();
   const router = useRouter();
 
-  // Check if we've run out of cards
+  const handleSessionComplete = async () => {
+    setIsCompleted(true);
+    if (reviewedCount > 0) {
+      await createStudySession();
+    }
+  };
+
   useEffect(() => {
     if (reviewQueue.length === 0) {
       handleSessionComplete();
     }
-  }, [reviewQueue]);
+  }, [reviewQueue, handleSessionComplete]);
+  
 
   // Get current card safely
   const currentCard = reviewQueue[currentIndex];
@@ -80,12 +87,7 @@ export default function ReviewSession({
     }
   };
 
-  const handleSessionComplete = async () => {
-    setIsCompleted(true);
-    if (reviewedCount > 0) {
-      await createStudySession();
-    }
-  };
+  
 
   const handleCardUpdate = async (rating: Rating) => {
     if (!currentCard) return;

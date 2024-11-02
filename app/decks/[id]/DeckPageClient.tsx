@@ -133,8 +133,12 @@ export default function DeckPageClient({
 
   useEffect(() => {
     if (!deck?.id) return;
-    fetchFlashcards();
-  }, [deck?.id]);
+    const fetchData = async () => {
+      await fetchFlashcards();
+    };
+    fetchData();
+  }, [deck?.id, fetchFlashcards]);
+  
 
   useEffect(() => {
     const checkSharedStatus = async () => {

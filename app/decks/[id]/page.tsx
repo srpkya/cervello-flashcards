@@ -1,4 +1,3 @@
-// app/decks/[id]/page.tsx
 import { getDeck, getFlashcards } from '@/lib/db';
 import { notFound, redirect } from 'next/navigation';
 import DeckPageClient from './DeckPageClient';
@@ -26,7 +25,7 @@ export default async function DeckPage({ params }: { params: { id: string } }) {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-semibold mb-4">Access Denied</h1>
-          <p className="text-gray-600 mb-4">You don't have permission to view this deck.</p>
+          <p className="text-gray-600 mb-4">You don&apos;t have permission to view this deck.</p>
           <Link href="/decks">
             <Button>
               Return to My Decks
@@ -37,14 +36,12 @@ export default async function DeckPage({ params }: { params: { id: string } }) {
     );
   }
 
-  // Convert timestamps to numbers for the deck
   const deck: Deck = {
     ...deckData,
     createdAt: new Date(Number(deckData.createdAt)),
     updatedAt: new Date(Number(deckData.updatedAt))
   };
 
-  // Get flashcards and ensure all BigInt values are converted to numbers
   const rawFlashcards = await getFlashcards(params.id);
   const flashcards: Flashcard[] = rawFlashcards.map(card => ({
     ...card,

@@ -105,18 +105,16 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
     return <EmptyState />;
   }
 
-  // Check if there's any actual study activity in the data
   const hasStudyActivity = data.some(day => day.count > 0 || day.studyTime > 0);
   if (!hasStudyActivity) {
     return <EmptyState />;
   }
 
-  const processedData = useMemo(() => {
+  const processedData = React.useMemo(() => {
     const today = new Date();
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
 
-    // Create a lookup object
     const dataLookup = Object.fromEntries(
       data.map(item => [item.date, item])
     );
@@ -138,7 +136,7 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
     return dates;
   }, [data]);
 
-  const stats = useMemo(() => {
+  const stats = React.useMemo(() => {
     const activeDays = data.filter(day => day.count > 0);
     const totalCards = activeDays.reduce((sum, day) => sum + day.count, 0);
     const bestDay = [...data].sort((a, b) => b.count - a.count)[0];
@@ -158,6 +156,9 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
     };
   }, [data]);
 
+  if (!data || data.length === 0) {
+    return <EmptyState />;
+  }
   return (
     <Card className="col-span-full dark:glass-card dark:border-white/5">
       <CardHeader className="pb-4">

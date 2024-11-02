@@ -103,28 +103,6 @@ export default function MarketplaceClient() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchDecks();
-    if (session?.user?.id) {
-      fetchMySharedDecks();
-    }
-  }, [session?.user?.id]);
-
-  const fetchDecks = async () => {
-    try {
-      const response = await fetch('/api/marketplace');
-      if (!response.ok) throw new Error('Failed to fetch decks');
-      const data = await response.json();
-      setAllDecks(data);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load marketplace decks",
-        variant: "destructive",
-      });
-    }
-  };
-
   const fetchMySharedDecks = async () => {
     if (!session?.user?.id) return;
     try {
@@ -140,6 +118,33 @@ export default function MarketplaceClient() {
       });
     }
   };
+  
+  const fetchDecks = async () => {
+    try {
+      const response = await fetch('/api/marketplace');
+      if (!response.ok) throw new Error('Failed to fetch decks');
+      const data = await response.json();
+      setAllDecks(data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load marketplace decks",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      await fetchDecks();
+      if (session?.user?.id) {
+        await fetchMySharedDecks();
+      }
+    };
+    loadData();
+  }, [session?.user?.id, fetchDecks, fetchMySharedDecks]);
+
+
 
   const handleRemoveFromMarketplace = async (deckId: string) => {
     setRemovingDeckId(deckId);

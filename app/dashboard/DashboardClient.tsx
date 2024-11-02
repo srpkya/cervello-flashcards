@@ -33,7 +33,6 @@ export default function DashboardClient() {
       const data = await response.json();
       setStudyStats(data);
 
-      // Fetch due cards count
       const dueResponse = await fetch(`/api/decks/due-count?userId=${session.user.id}`);
       if (dueResponse.ok) {
         const { count } = await dueResponse.json();

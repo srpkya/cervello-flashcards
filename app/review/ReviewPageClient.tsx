@@ -1,4 +1,3 @@
-// app/review/ReviewPageClient.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react';
@@ -21,14 +20,6 @@ export default function ReviewPageClient() {
   const { toast } = useToast();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!session?.user?.id) {
-      router.push('/auth/signin');
-      return;
-    }
-    fetchDecks();
-  }, [session?.user?.id]);
-
   const fetchDecks = async () => {
     try {
       const response = await fetch(`/api/decks?userId=${session?.user?.id}`);
@@ -49,6 +40,16 @@ export default function ReviewPageClient() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      router.push('/auth/signin');
+      return;
+    }
+    fetchDecks();
+  }, [session?.user?.id, router, fetchDecks]);
+  
+
 
   const startReview = async () => {
     if (selectedDecks.length === 0) {
