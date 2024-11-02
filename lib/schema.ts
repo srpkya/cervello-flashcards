@@ -153,7 +153,21 @@ export const deckLabel = sqliteTable('deck_label', {
     .notNull()
     .references(() => label.id, { onDelete: 'cascade' }),
 });
-// Types
+
+export const userRateLimit = sqliteTable('user_rate_limit', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => user.id, { onDelete: 'cascade' }),
+  translationCount: integer('translation_count').notNull().default(0),
+  translationResetTime: integer('translation_reset_time').notNull(),
+  dailyCount: integer('daily_count').notNull().default(0),
+  dailyResetTime: integer('daily_reset_time').notNull(),
+  monthlyCount: integer('monthly_count').notNull().default(0),
+  monthlyResetTime: integer('monthly_reset_time').notNull(),
+  lastUpdated: integer('last_updated').notNull()
+});
+
 export type User = InferSelectModel<typeof user>;
 export type NewUser = InferInsertModel<typeof user>;
 
@@ -177,3 +191,6 @@ export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type SharedDeck = InferSelectModel<typeof sharedDeck>;
 export type DeckRating = InferSelectModel<typeof deckRating>;
 export type DeckComment = InferSelectModel<typeof deckComment>;
+
+export type UserRateLimit = typeof userRateLimit.$inferSelect;
+export type NewUserRateLimit = typeof userRateLimit.$inferInsert;

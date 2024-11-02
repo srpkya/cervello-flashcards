@@ -33,7 +33,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
+repopack-output.txt
 pnpm-lock.yaml
 
-repopack-output.txt

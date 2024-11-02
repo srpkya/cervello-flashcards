@@ -43,6 +43,13 @@
       "when": 1730389431785,
       "tag": "0005_striped_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1730556322281,
+      "tag": "0006_condemned_terror",
+      "breakpoints": true
     }
   ]
 }

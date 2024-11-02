@@ -18,21 +18,15 @@ export default function HomeClient() {
           >
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-6xl lg:text-7xl font-light tracking-tight text-neutral-900 dark:text-white mb-6">
-                Learn Smarter, 
-                <span className="text-neutral-500 dark:text-neutral-400"> Not Harder</span>
+                Simple,
+                <span className="text-neutral-500 dark:text-neutral-400"> But Efficient</span>
               </h1>
               <p className="text-lg md:text-xl text-neutral-600 dark:text-neutral-400 mb-8 max-w-3xl mx-auto">
                 Master any subject with our intelligent flashcard system. Built for students, professionals, and lifelong learners.
               </p>
               <div className="flex justify-center gap-4">
                 <SignInButton className="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200" />
-                <Button 
-                  variant="outline"
-                  className="dark:border-white/10 dark:hover:border-white/20 dark:text-white group"
-                >
-                  Learn More
-                  <ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
+
               </div>
             </div>
 
@@ -90,17 +84,7 @@ export default function HomeClient() {
           transition={{ duration: 0.5, delay: 0.4 }}
           className="bg-white dark:bg-white/[0.02] border-t border-neutral-200 dark:border-white/5 py-16 md:py-24"
         >
-          <div className="container max-w-6xl mx-auto px-4">
-            <div className="text-center">
-              <h2 className="text-3xl md:text-4xl font-light text-neutral-900 dark:text-white mb-4">
-                Start Learning Today
-              </h2>
-              <p className="text-neutral-600 dark:text-neutral-400 mb-8">
-                Join thousands of students who&apos;ve improved their learning with our system.
-              </p>
-              <SignInButton className="bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-white dark:text-black dark:hover:bg-neutral-200" />
-            </div>
-          </div>
+          
         </motion.div>
       </div>
     </div>

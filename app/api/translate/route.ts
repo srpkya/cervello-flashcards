@@ -1,32 +1,59 @@
-// app/api/translate/route.ts
 import { NextResponse } from 'next/server';
-import { RateLimiter } from '@/lib/rate-limiter';
-import { headers } from 'next/headers';
 import { getTranslation } from '@/lib/huggingface';
-import { z } from 'zod';
+import { RateLimiter } from '@/lib/rate-limiter';
+import { getServerSession } from 'next-auth';
+import { authOptions } from "@/lib/auth";
 
-// Validation schema
-const translationSchema = z.object({
-  text: z.string().min(1).max(500),
-  sourceLang: z.string().length(2),
-  targetLang: z.string().length(2)
-});
-
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    // Get the API token from environment variables
-    const apiToken = process.env.HUGGINGFACE_API_TOKEN;
-    
-    if (!apiToken) {
-      console.error('Missing Hugging Face API token');
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { error: 'Service configuration error' },
-        { status: 500 }
+        { error: 'Unauthorized', remaining: 0 },
+        { status: 401 }
       );
     }
 
-    const body = await request.json();
-    const { text, sourceLang, targetLang } = body;
+    const rateLimitStatus = await RateLimiter.getRemainingTranslations(session.user.id);
+
+    return NextResponse.json({
+      remaining: rateLimitStatus.remaining,
+      isLimited: rateLimitStatus.isLimited,
+      message: rateLimitStatus.message,
+      resetIn: rateLimitStatus.resetIn
+    });
+  } catch (error) {
+    console.error('Error checking translation limit:', error);
+    return NextResponse.json(
+      { error: 'Failed to check translation limit', remaining: 0 },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const rateLimitCheck = await RateLimiter.checkTranslationLimit(session.user.id);
+    if (rateLimitCheck.isLimited) {
+      return NextResponse.json(
+        { 
+          error: 'Rate limit exceeded',
+          message: rateLimitCheck.message,
+          resetIn: rateLimitCheck.resetIn
+        },
+        { status: 429 }
+      );
+    }
+
+    const { text, sourceLang, targetLang } = await request.json();
 
     if (!text || !sourceLang || !targetLang) {
       return NextResponse.json(
@@ -35,9 +62,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Pass the API token as the fourth argument
-    const result = await getTranslation(text, sourceLang, targetLang, apiToken);
-    return NextResponse.json(result);
+    const result = await getTranslation(
+      text,
+      sourceLang,
+      targetLang,
+      process.env.HUGGINGFACE_API_TOKEN!
+    );
+
+    const remainingTranslations = await RateLimiter.getRemainingTranslations(session.user.id);
+
+    return NextResponse.json({
+      ...result,
+      remaining: remainingTranslations.remaining
+    });
 
   } catch (error) {
     console.error('Translation error:', error);
