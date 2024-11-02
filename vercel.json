@@ -1,8 +1,5 @@
 {
-  "build": {
-    "installCommand": "pnpm install",
-    "buildCommand": "pnpm build"
-  },
+  
   "git": {
     "deploymentEnabled": {
       "main": true
