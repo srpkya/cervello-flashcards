@@ -1,6 +1,5 @@
-// lib/fsrs.ts
 interface FSRSParameters {
-  w: [number, number, number, number]; // Weights
+  w: [number, number, number, number];
   requestRetention: number;
 }
 
@@ -40,32 +39,26 @@ export class FSRS {
     }
   }
 
-  // Calculate memory state after delay
   private retrievabilityToStability(R: number, S: number): number {
     const w = this.parameters.w;
-    // Cap the stability increase to prevent overflow
     const newStability = Math.min(
       S * (1 + Math.exp(w[0]) * (11 - R) + w[1] * (Math.log(S) - Math.log(1))),
-      180 // Cap at 180 days
+      180 
     );
-    return Math.max(1, newStability); // Ensure minimum stability of 1
+    return Math.max(1, newStability); 
   }
 
-  // Calculate retrievability given stability and elapsed time
   private calculateRetrievability(S: number, t: number): number {
     return Math.exp(Math.log(0.9) * t / Math.max(1, S));
   }
 
-  // Calculate next interval based on difficulty and stability
   private intervalFromStability(S: number): number {
-    // Cap the interval at 180 days (6 months)
     return Math.min(
       Math.max(1, Math.round(S * Math.log(this.parameters.requestRetention) / Math.log(0.9))),
       180
     );
   }
 
-  // Update card state based on rating
   public updateState(
     currentState: CardState,
     rating: Rating,
@@ -76,7 +69,6 @@ export class FSRS {
 
     let newState: CardState = { ...currentState };
     
-    // Handle new cards differently
     if (currentState.state === 'new' || currentState.reps === 0) {
       newState.scheduledDays = this.getInitialInterval(rating);
       newState.stability = 1;
@@ -85,15 +77,14 @@ export class FSRS {
       return newState;
     }
 
-    // Handle learning/relearning cards
     if (currentState.state === 'learning' || currentState.state === 'relearning') {
       if (rating.rating === 'again') {
-        newState.scheduledDays = 1/1440; // 1 minute
+        newState.scheduledDays = 1/1440; 
       } else if (rating.rating === 'good' || rating.rating === 'easy') {
-        newState.scheduledDays = 1; // Graduate to 1 day
+        newState.scheduledDays = 1; 
         newState.state = 'review';
       } else {
-        newState.scheduledDays = 10/1440; // 10 minutes
+        newState.scheduledDays = 10/1440; 
       }
       newState.reps += 1;
       return newState;
@@ -105,7 +96,7 @@ export class FSRS {
         newState.state = 'relearning';
         newState.stability = Math.max(1, currentState.stability * 0.5);
         newState.difficulty = Math.min(10, currentState.difficulty + 1);
-        newState.scheduledDays = 1/1440; // Back to 1 minute
+        newState.scheduledDays = 1/1440; 
         newState.lapses += 1;
         break;
 
@@ -113,7 +104,6 @@ export class FSRS {
         newState.state = 'review';
         newState.stability = this.retrievabilityToStability(R, currentState.stability) * 0.8;
         newState.difficulty = Math.max(1, currentState.difficulty - 0.5);
-        // Cap the interval increase for 'hard' responses
         newState.scheduledDays = Math.min(
           currentState.scheduledDays * 1.2,
           this.intervalFromStability(newState.stability)

@@ -10,7 +10,7 @@ interface RateLimitResponse {
 }
 
 export const RATE_LIMITS = {
-  TRANSLATIONS_PER_HOUR: 30,      
+  TRANSLATIONS_PER_HOUR: 35,      
   TRANSLATIONS_PER_DAY: 100,      
   TRANSLATIONS_PER_MONTH: 500,   
 } as const;
