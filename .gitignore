@@ -34,5 +34,4 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 repopack-output.txt
-pnpm-lock.yaml
 
