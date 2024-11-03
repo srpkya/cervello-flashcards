@@ -100,17 +100,9 @@ const EmptyState = () => (
 );
 
 export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartProps) {
-  // Check if there's no study data
-  if (!data || data.length === 0) {
-    return <EmptyState />;
-  }
-
-  const hasStudyActivity = data.some(day => day.count > 0 || day.studyTime > 0);
-  if (!hasStudyActivity) {
-    return <EmptyState />;
-  }
-
-  const processedData = React.useMemo(() => {
+  const processedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    
     const today = new Date();
     const fourteenDaysAgo = new Date(today);
     fourteenDaysAgo.setDate(today.getDate() - 13);
@@ -136,7 +128,14 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
     return dates;
   }, [data]);
 
-  const stats = React.useMemo(() => {
+  const stats = useMemo(() => {
+    if (!data || data.length === 0) return {
+      totalCards: 0,
+      bestDay: { date: 'N/A', count: 0 },
+      averageCards: 0,
+      activeDays: 0
+    };
+
     const activeDays = data.filter(day => day.count > 0);
     const totalCards = activeDays.reduce((sum, day) => sum + day.count, 0);
     const bestDay = [...data].sort((a, b) => b.count - a.count)[0];
@@ -156,9 +155,12 @@ export default function StudyStatsChart({ data, streak = 0 }: StudyStatsChartPro
     };
   }, [data]);
 
-  if (!data || data.length === 0) {
+  const hasStudyActivity = data?.some(day => day.count > 0 || day.studyTime > 0);
+
+  if (!data || data.length === 0 || !hasStudyActivity) {
     return <EmptyState />;
   }
+
   return (
     <Card className="col-span-full dark:glass-card dark:border-white/5">
       <CardHeader className="pb-4">

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { Deck, Flashcard } from '@/lib/types';
@@ -20,9 +20,11 @@ export default function ReviewPageClient() {
   const { toast } = useToast();
   const router = useRouter();
 
-  const fetchDecks = async () => {
+  const fetchDecks = useCallback(async () => {
+    if (!session?.user?.id) return;
+
     try {
-      const response = await fetch(`/api/decks?userId=${session?.user?.id}`);
+      const response = await fetch(`/api/decks?userId=${session.user.id}`);
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to fetch decks');
@@ -39,7 +41,7 @@ export default function ReviewPageClient() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [session?.user?.id, toast]);
 
   useEffect(() => {
     if (!session?.user?.id) {

@@ -1,19 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { useRouter } from 'next/navigation';
-import { Deck, Flashcard } from '@/lib/types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useSession } from "next-auth/react";
 import {
   Card, CardContent, CardDescription,
   CardFooter, CardHeader, CardTitle
@@ -40,7 +28,8 @@ import {
 import { cn } from '@/lib/utils';
 import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog';
 import { formatTimestamp } from '@/lib/utils';
-import { useSession } from "next-auth/react";
+import { useRouter } from 'next/navigation';
+import { Deck, Flashcard } from '@/lib/types';
 
 const flashcardSchema = z.object({
   front: z.string().min(1, "Front side is required"),
@@ -54,11 +43,6 @@ interface DeckPageClientProps {
 
 type FlashcardFormData = z.infer<typeof flashcardSchema>;
 
-interface DeckPageClientProps {
-  initialDeck: Deck;
-  initialFlashcards: Flashcard[];
-}
-
 export default function DeckPageClient({
   initialDeck,
   initialFlashcards
@@ -69,8 +53,8 @@ export default function DeckPageClient({
   const [isCreating, setIsCreating] = useState(false);
   const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
-  const { toast } = useToast();
   const [isShared, setIsShared] = useState(false);
+  const { toast } = useToast();
   const router = useRouter();
 
   const form = useForm<FlashcardFormData>({
@@ -81,29 +65,23 @@ export default function DeckPageClient({
     }
   });
 
-  const fetchFlashcards = async () => {
+  const fetchFlashcards = useCallback(async () => {
+    if (!deck?.id) return;
+
     try {
-      // First ensure we have a valid deck ID
-      if (!deck?.id) {
-        console.error("Missing deck ID");
-        return;
-      }
-  
       const response = await fetch(`/api/flashcards?deckId=${deck.id}`);
       
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch flashcards');
       }
-  
+      
       const fetchedFlashcards = await response.json();
       
-      // Validate the response data
       if (!Array.isArray(fetchedFlashcards)) {
         throw new Error('Invalid flashcards data received');
       }
-  
-      // Convert timestamps to proper format
+      
       const processedFlashcards = fetchedFlashcards.map(card => ({
         ...card,
         createdAt: Number(card.createdAt),
@@ -119,7 +97,7 @@ export default function DeckPageClient({
         interval: Number(card.interval),
         easeFactor: Number(card.easeFactor)
       }));
-  
+      
       setFlashcards(processedFlashcards);
     } catch (error) {
       console.error("Failed to fetch flashcards:", error);
@@ -129,16 +107,12 @@ export default function DeckPageClient({
         variant: "destructive",
       });
     }
-  };
+  }, [deck?.id, toast]);
 
   useEffect(() => {
     if (!deck?.id) return;
-    const fetchData = async () => {
-      await fetchFlashcards();
-    };
-    fetchData();
+    fetchFlashcards();
   }, [deck?.id, fetchFlashcards]);
-  
 
   useEffect(() => {
     const checkSharedStatus = async () => {
@@ -166,7 +140,7 @@ export default function DeckPageClient({
       });
       return;
     }
-  
+
     try {
       const response = await fetch('/api/marketplace', {
         method: 'POST',
@@ -175,19 +149,19 @@ export default function DeckPageClient({
           deckId: deck.id
         }),
       });
-  
+
       const data = await response.json();
-  
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to share deck');
       }
-  
+
       setIsShared(true);
       toast({
         title: "Success",
         description: "Deck shared to marketplace successfully",
       });
-  
+
     } catch (error) {
       console.error('Error sharing deck:', error);
       toast({
@@ -224,9 +198,9 @@ export default function DeckPageClient({
         }
 
         const updatedCard = await response.json();
-        setFlashcards(prevCards => prevCards.map(card =>
-          card.id === editingCard.id ? updatedCard : card
-        ));
+        setFlashcards(prevCards =>
+          prevCards.map(card => card.id === editingCard.id ? updatedCard : card)
+        );
 
         toast({
           title: "Success",
@@ -298,7 +272,6 @@ export default function DeckPageClient({
   const dueCards = flashcards.filter(card =>
     !card.nextReview || new Date(card.nextReview) <= new Date()
   );
-
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-5xl mx-auto">

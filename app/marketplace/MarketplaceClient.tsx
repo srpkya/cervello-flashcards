@@ -1,7 +1,7 @@
 // app/marketplace/MarketplaceClient.tsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ export default function MarketplaceClient() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const fetchMySharedDecks = async () => {
+  const fetchMySharedDecks = useCallback(async () => {
     if (!session?.user?.id) return;
     try {
       const response = await fetch(`/api/marketplace/user/${session.user.id}`);
@@ -117,9 +117,9 @@ export default function MarketplaceClient() {
         variant: "destructive",
       });
     }
-  };
-  
-  const fetchDecks = async () => {
+  }, [session?.user?.id, toast]);
+
+  const fetchDecks = useCallback(async () => {
     try {
       const response = await fetch('/api/marketplace');
       if (!response.ok) throw new Error('Failed to fetch decks');
@@ -132,7 +132,7 @@ export default function MarketplaceClient() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     const loadData = async () => {

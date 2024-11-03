@@ -1,4 +1,3 @@
-// components/DeckCommentsDialog.tsx
 'use client';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -6,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { format } from 'date-fns';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -46,7 +45,7 @@ export function DeckCommentsDialog({
   const { data: session } = useSession();
   const { toast } = useToast();
 
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     setIsLoading(true);
     try {
       const response = await fetch(`/api/marketplace/${deck.id}/comments`);
@@ -62,15 +61,13 @@ export function DeckCommentsDialog({
     } finally {
       setIsLoading(false);
     }
-  };
-  
+  }, [deck.id, toast]);
+
   useEffect(() => {
     if (open && deck) {
       fetchComments();
     }
   }, [open, deck, fetchComments]);
-
-  
 
   const handleSubmitComment = async () => {
     if (!session?.user?.id || !newComment.trim()) return;

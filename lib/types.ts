@@ -1,10 +1,22 @@
 // lib/types.ts
 import { Session, DefaultSession } from "next-auth"
-import { pipeline, PipelineType } from '@huggingface/transformers';
 import type { 
   Flashcard as DrizzleFlashcard,
   StudySession as DrizzleStudySession,
 } from './schema';
+
+export type DrizzleConfig = {
+  schema: string;
+  out: string;
+  driver: "d1-http";
+  dbCredentials: {
+    accountId: string;
+    databaseId: string;
+    token: string;
+  };
+  verbose?: boolean;
+  strict?: boolean;
+}
 
 export interface Deck {
   id: string;
@@ -23,16 +35,6 @@ export interface StudyData {
   studyTime: number;
 }
 
-export type Config = {
-  schema: string
-  out: string
-  dialect: "sqlite"
-  driver: "d1-http" | "expo" | "turso" | undefined
-  dbCredentials: {
-    url: string
-    authToken: string | undefined
-  }
-}
 
 
 export interface Flashcard {
@@ -128,14 +130,6 @@ export interface TTSOptions {
 export interface TranslationResponse {
   translation_text: string;
 }
-
-export interface TranslationWorkerMessage {
-  task: PipelineType;
-  modelId: string;
-  inputs: string;
-  options?: Record<string, any>;
-}
-
 export type FlashcardUpdateData = {
   front: string;
   back: string;

@@ -14,7 +14,7 @@ if (!process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN) {
 export default {
   schema: './lib/schema.ts',
   out: './migrations',
-  driver: 'turso',
+  dialect: 'turso',
   dbCredentials: {
     url: process.env.NEXT_PUBLIC_TURSO_DATABASE_URL,
     authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,

@@ -1,5 +1,5 @@
 'use client'
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -24,7 +24,7 @@ export default function DashboardClient() {
   const [dailyGoal, setDailyGoal] = React.useState(100);
   const [dueCards, setDueCards] = React.useState(0);
 
-  const fetchStats = React.useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     if (!session?.user?.id) return;
 
     try {
@@ -56,12 +56,15 @@ export default function DashboardClient() {
     return () => clearInterval(interval);
   }, [fetchStats]);
 
-  const studyTimeFormatted = React.useMemo(() => {
+  const studyTimeFormatted = useMemo(() => {
     return studyStats ? formatTimeString(formatStudyTime(studyStats.studyTimeToday)) : '0h 0m';
-  }, [studyStats?.studyTimeToday]);
+  }, [studyStats]);
 
-  const progressPercentage = Math.min(((studyStats?.totalCardsToday || 0) / dailyGoal) * 100, 100);
-  const dueProgressPercentage = dueCards > 0 ? Math.min(((studyStats?.totalCardsToday || 0) / dueCards) * 100, 100) : 0;
+  const progressPercentage = ((studyStats?.totalCardsToday || 0) / dailyGoal) * 100;
+  const dueProgressPercentage = useMemo(() => {
+    if (!studyStats) return 0;
+    return dueCards > 0 ? Math.min(((studyStats.totalCardsToday || 0) / dueCards) * 100, 100) : 0;
+  }, [studyStats, dueCards]);
 
   let content;
 
@@ -96,7 +99,7 @@ export default function DashboardClient() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-blue-500" />
-                    <CardTitle className="text-xl font-light">Today's Progress</CardTitle>
+                    <CardTitle className="text-xl font-light">Today&apos;s Progress</CardTitle>
                   </div>
                   <Popover>
                     <PopoverTrigger asChild>

@@ -1,4 +1,5 @@
-// app/review/ReviewSession.tsx
+'use client';
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Flashcard as FlashcardType } from '@/lib/types';
@@ -35,68 +36,56 @@ export default function ReviewSession({
   const { toast } = useToast();
   const router = useRouter();
 
-  const handleSessionComplete = async () => {
+  const handleSessionComplete = useCallback(async () => {
     setIsCompleted(true);
     if (reviewedCount > 0) {
-      await createStudySession();
+      try {
+        const sessionData = {
+          userId,
+          cardsStudied: reviewedCount,
+          startTime: sessionStartTime,
+          endTime: Date.now(),
+          correctCount,
+          incorrectCount,
+          averageTime: reviewedCount > 0 ? Math.round(totalResponseTime / reviewedCount) : 0
+        };
+
+        const response = await fetch('/api/study-sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sessionData),
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save study session');
+        }
+      } catch (error) {
+        console.error('Error saving study session:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save study progress",
+          variant: "destructive",
+        });
+      }
     }
-  };
+  }, [reviewedCount, userId, sessionStartTime, correctCount, incorrectCount, totalResponseTime, toast]);
 
   useEffect(() => {
     if (reviewQueue.length === 0) {
       handleSessionComplete();
     }
-  }, [reviewQueue, handleSessionComplete]);
-  
+  }, [reviewQueue.length, handleSessionComplete]);
 
-  // Get current card safely
   const currentCard = reviewQueue[currentIndex];
   const progress = originalCards.length > 0 ? (reviewedCount / originalCards.length) * 100 : 0;
 
-  const createStudySession = async () => {
-    try {
-      const sessionData = {
-        userId,
-        cardsStudied: reviewedCount,
-        startTime: sessionStartTime,
-        endTime: Date.now(),
-        correctCount,
-        incorrectCount,
-        averageTime: reviewedCount > 0 ? Math.round(totalResponseTime / reviewedCount) : 0
-      };
-
-      const response = await fetch('/api/study-sessions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to save study session');
-      }
-
-      // Don't show success toast to avoid UI clutter
-      console.log('Study session saved successfully');
-    } catch (error) {
-      console.error('Error saving study session:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save study progress",
-        variant: "destructive",
-      });
-    }
-  };
-
-  
-
   const handleCardUpdate = async (rating: Rating) => {
     if (!currentCard) return;
-  
+
     const responseTime = Date.now() - responseStartTime;
     setTotalResponseTime(prev => prev + responseTime);
-  
+
     try {
-      // Calculate new state using FSRS
       const currentState: CardState = {
         state: currentCard.state || 'new',
         stability: Number(currentCard.stability || 1),
@@ -106,11 +95,10 @@ export default function ReviewSession({
         reps: Number(currentCard.reps || 0),
         lapses: Number(currentCard.lapses || 0),
       };
-  
+
       const newState = fsrs.updateState(currentState, rating);
       const nextReviewDate = fsrs.getNextReviewDate(newState);
-  
-      // Prepare update data
+
       const updateData = {
         front: currentCard.front,
         back: currentCard.back,
@@ -126,32 +114,21 @@ export default function ReviewSession({
           lapses: Number(newState.lapses)
         }
       };
-  
-      console.log('Sending update data:', updateData);
-  
-      // Update the flashcard
+
       const response = await fetch(`/api/flashcards/${currentCard.id}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updateData)
       });
-  
+
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Update error response:', errorData);
         throw new Error(errorData.error || 'Failed to update flashcard');
       }
-  
-      const result = await response.json();
-      console.log('Update success:', result);
-  
-      // Handle successful update
+
       if (rating.rating === 'again') {
         setIncorrectCount(prev => prev + 1);
         
-        // Remove current card and add it back later in the queue
         const newQueue = [...reviewQueue];
         newQueue.splice(currentIndex, 1);
         
@@ -166,7 +143,6 @@ export default function ReviewSession({
         setCorrectCount(prev => prev + 1);
         setReviewedCount(prev => prev + 1);
         
-        // Remove the current card from the queue
         const newQueue = [...reviewQueue];
         newQueue.splice(currentIndex, 1);
         setReviewQueue(newQueue);
@@ -175,9 +151,9 @@ export default function ReviewSession({
           setCurrentIndex(Math.max(0, newQueue.length - 1));
         }
       }
-  
+
       setResponseStartTime(Date.now());
-  
+
     } catch (error) {
       console.error('Error updating flashcard:', error);
       toast({
@@ -188,61 +164,6 @@ export default function ReviewSession({
     }
   };
 
-  const updateFlashcardInDb = async (
-    id: string,
-    newState: CardState,
-    nextReviewDate: Date | null,
-    ratingValue: number,
-    responseTimeMs: number
-  ) => {
-    try {
-      // Clamp extremely large numbers to safe values
-      const stability = Math.min(Number(newState.stability), Number.MAX_SAFE_INTEGER);
-      const scheduledDays = Math.min(Number(newState.scheduledDays), Number.MAX_SAFE_INTEGER);
-  
-      const updateData = {
-        front: currentCard.front,
-        back: currentCard.back,
-        reviewData: {
-          lastReviewed: Date.now(),
-          nextReview: nextReviewDate ? nextReviewDate.getTime() : null,
-          state: newState.state,
-          stability,
-          difficulty: Number(newState.difficulty),
-          elapsedDays: Number(newState.elapsedDays),
-          scheduledDays,
-          reps: Number(currentCard.reps || 0) + 1,
-          lapses: Number(newState.lapses)
-        }
-      };
-  
-      console.log('Sending update data:', JSON.stringify(updateData, null, 2));
-  
-      const response = await fetch(`/api/flashcards/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(updateData)
-      });
-  
-      const responseData = await response.json();
-  
-      if (!response.ok) {
-        console.error('Update error response:', responseData);
-        throw new Error(responseData.error || 'Failed to update flashcard');
-      }
-  
-      return responseData;
-      
-    } catch (error) {
-      console.error('Error updating flashcard:', error);
-      throw error;
-    }
-  };
-  
-
-  // Show empty state if there were no cards to begin with
   if (originalCards.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -270,7 +191,6 @@ export default function ReviewSession({
     );
   }
 
-  // Safely render the review interface only if we have a current card
   if (!currentCard) {
     return null;
   }
