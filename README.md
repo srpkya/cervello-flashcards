@@ -38,8 +38,8 @@ A modern spaced repetition flashcard app built with Next.js 13, featuring an int
 Create a `.env.local` file in the root directory with the following variables:
 
 ```bash
-NEXT_PUBLIC_TURSO_DATABASE_URL=your_turso_database_url
-NEXT_PUBLIC_TURSO_AUTH_TOKEN=your_turso_auth_token
+TURSO_DATABASE_URL=your_turso_database_url
+TURSO_AUTH_TOKEN=your_turso_auth_token
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 NEXTAUTH_SECRET=your_nextauth_secret
