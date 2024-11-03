@@ -19,8 +19,8 @@ const RETRY_DELAY = 1000;
 async function createDbClientWithRetry(attempt = 1) {
   try {
     const client = createClient({
-      url: process.env.NEXT_PUBLIC_TURSO_DATABASE_URL!,
-      authToken: process.env.NEXT_PUBLIC_TURSO_AUTH_TOKEN,
+      url: process.env.TURSO_DATABASE_URL!,
+      authToken: process.env.TURSO_AUTH_TOKEN,
     });
     await client.execute('SELECT 1');
     return drizzle(client, { schema, logger: false });
