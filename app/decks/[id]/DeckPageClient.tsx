@@ -2,56 +2,52 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useSession } from "next-auth/react";
-import {
-  Card, CardContent, CardDescription,
-  CardFooter, CardHeader, CardTitle
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogHeader,
-  DialogTitle, DialogTrigger
-} from "@/components/ui/dialog";
-import {
-  Form, FormField, FormItem,
-  FormLabel, FormControl, FormMessage
-} from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Plus, Edit2, Trash2, PlayCircle,
-  Book, Clock, ChevronRight, Globe
-} from 'lucide-react';
+import { Plus, Edit2, Trash2, PlayCircle, Book, Clock, ChevronRight, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import TranslationFlashcardDialog from '@/components/TranslationFlashcardDialog';
 import { formatTimestamp } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { Deck, Flashcard } from '@/lib/types';
-
-const flashcardSchema = z.object({
+import { Deck } from '@/lib/types';
+import { Flashcard as FlashcardType} from '@/lib/types';
+import Flashcard  from '@/components/Flashcard'
+const flashcardSchema = z.object({ 
   front: z.string().min(1, "Front side is required"),
   back: z.string().min(1, "Back side is required")
 });
 
 interface DeckPageClientProps {
   initialDeck: Deck;
-  initialFlashcards: Flashcard[];
+  initialFlashcards: FlashcardType[];
 }
-
+interface ReviewData {
+  lastReviewed: number;
+  nextReview: number | null;
+  state: 'new' | 'learning' | 'review' | 'relearning';
+  stability: number;
+  difficulty: number;
+  elapsedDays: number;
+  scheduledDays: number;
+  reps: number;
+  lapses: number;
+}
 type FlashcardFormData = z.infer<typeof flashcardSchema>;
 
-export default function DeckPageClient({
-  initialDeck,
-  initialFlashcards
-}: DeckPageClientProps) {
+export default function DeckPageClient({ initialDeck, initialFlashcards }: DeckPageClientProps) {
   const { data: session } = useSession();
   const [deck, setDeck] = useState<Deck>(initialDeck);
-  const [flashcards, setFlashcards] = useState<Flashcard[]>(initialFlashcards);
+  const [flashcards, setFlashcards] = useState<FlashcardType[]>(initialFlashcards);
   const [isCreating, setIsCreating] = useState(false);
-  const [editingCard, setEditingCard] = useState<Flashcard | null>(null);
+  const [editingCard, setEditingCard] = useState<FlashcardType | null>(null);
   const [isTranslationDialogOpen, setIsTranslationDialogOpen] = useState(false);
   const [isShared, setIsShared] = useState(false);
   const { toast } = useToast();
@@ -100,7 +96,6 @@ export default function DeckPageClient({
       
       setFlashcards(processedFlashcards);
     } catch (error) {
-      console.error("Failed to fetch flashcards:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to load flashcards",
@@ -115,6 +110,8 @@ export default function DeckPageClient({
   }, [deck?.id, fetchFlashcards]);
 
   useEffect(() => {
+    if (!deck?.id) return;
+    
     const checkSharedStatus = async () => {
       try {
         const response = await fetch(`/api/marketplace/check/${deck.id}`);
@@ -126,10 +123,32 @@ export default function DeckPageClient({
       }
     };
 
-    if (deck?.id) {
-      checkSharedStatus();
-    }
+    checkSharedStatus();
   }, [deck?.id]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/flashcards/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete flashcard');
+      }
+
+      setFlashcards(prevCards => prevCards.filter(card => card.id !== id));
+      toast({
+        title: "Success",
+        description: "Flashcard deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete flashcard",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleShareDeck = async () => {
     if (!session?.user?.id) {
@@ -161,9 +180,7 @@ export default function DeckPageClient({
         title: "Success",
         description: "Deck shared to marketplace successfully",
       });
-
     } catch (error) {
-      console.error('Error sharing deck:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to share deck",
@@ -189,7 +206,18 @@ export default function DeckPageClient({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             front: data.front,
-            back: data.back
+            back: data.back,
+            reviewData: {
+              lastReviewed: editingCard.lastReviewed || Date.now(),
+              nextReview: editingCard.nextReview,
+              state: editingCard.state || 'new',
+              stability: editingCard.stability || 0,
+              difficulty: editingCard.difficulty || 0,
+              elapsedDays: editingCard.elapsedDays || 0,
+              scheduledDays: editingCard.scheduledDays || 0,
+              reps: editingCard.reps || 0,
+              lapses: editingCard.lapses || 0
+            }
           })
         });
 
@@ -233,9 +261,7 @@ export default function DeckPageClient({
       form.reset();
       setIsCreating(false);
       setEditingCard(null);
-
     } catch (error) {
-      console.error("Failed to save flashcard:", error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
@@ -244,34 +270,10 @@ export default function DeckPageClient({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this flashcard?")) return;
-
-    try {
-      const response = await fetch(`/api/flashcards/${id}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) throw new Error('Failed to delete flashcard');
-
-      setFlashcards(prevCards => prevCards.filter(card => card.id !== id));
-      toast({
-        title: "Success",
-        description: "Flashcard deleted successfully",
-      });
-    } catch (error) {
-      console.error("Failed to delete flashcard:", error);
-      toast({
-        title: "Error",
-        description: "Failed to delete flashcard. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
   const dueCards = flashcards.filter(card =>
     !card.nextReview || new Date(card.nextReview) <= new Date()
   );
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-5xl mx-auto">

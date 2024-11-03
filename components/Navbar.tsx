@@ -109,6 +109,7 @@ const Navbar = () => {
                   <>
                     <NavLink href="/dashboard" icon={LayoutDashboard}>Dashboard</NavLink>
                     <NavLink href="/decks" icon={BookOpen}>Collections</NavLink>
+                    <NavLink href="/marketplace" icon={ShoppingBag}>Marketplace</NavLink>
                     <NavLink href="/review" icon={RefreshCw}>Review</NavLink>
                   </>
                 )}
