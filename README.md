@@ -21,8 +21,7 @@ A modern spaced repetition flashcard app built with Next.js 13, featuring an int
 - **Backend**: Next.js API Routes, Drizzle ORM
 - **Database**: Turso (SQLite)
 - **Authentication**: NextAuth.js with Google Provider
-- **Testing**: Vitest, React Testing Library
-- **AI Integration**: Hugging Face for translations
+- **NLP Integration**: Helsinki-NLP's OPUS-MT models via Hugging Face
 
 ## Getting Started
 
@@ -69,20 +68,6 @@ pnpm migrate
 pnpm dev
 ```
 
-## Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-pnpm test
-
-# Run tests in watch mode
-pnpm test:watch
-
-# Run tests with coverage
-pnpm test:coverage
-```
 
 ## Key Features Overview
 
