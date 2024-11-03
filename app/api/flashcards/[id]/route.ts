@@ -226,3 +226,46 @@ export async function POST(
     );
   }
 }
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const db = await getDb();
+
+    const card = await db
+      .select()
+      .from(flashcard)
+      .where(eq(flashcard.id, params.id))
+      .get();
+
+    if (!card) {
+      return NextResponse.json(
+        { error: 'Flashcard not found' },
+        { status: 404 }
+      );
+    }
+
+    await db
+      .delete(flashcard)
+      .where(eq(flashcard.id, params.id));
+
+    return NextResponse.json({ success: true });
+
+  } catch (error) {
+    console.error('Error deleting flashcard:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete flashcard' },
+      { status: 500 }
+    );
+  }
+}
