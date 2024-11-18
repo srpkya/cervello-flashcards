@@ -50,7 +50,7 @@ HUGGINGFACE_API_TOKEN=your_huggingface_token
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/srpkya/cervello_flashcards.git
+git clone https://github.com/srpkya/cervello-flashcards.git
 ```
 
 2. Install dependencies:
